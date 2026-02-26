@@ -18,7 +18,7 @@ type PortalContextValue = {
   setOnboardingComplete: (value: boolean) => void
   selectProject: (projectId: string) => void
   refreshProjects: () => Promise<void>
-  createProject: (name: string, environment?: Environment) => Promise<Project>
+  createProject: (name: string) => Promise<Project>
 }
 
 const PortalContext = createContext<PortalContextValue | null>(null)
@@ -31,7 +31,6 @@ function getStoredValue(key: string) {
   if (typeof window === 'undefined') {
     return null
   }
-
   return window.localStorage.getItem(key)
 }
 
@@ -39,7 +38,6 @@ function setStoredValue(key: string, value: string) {
   if (typeof window === 'undefined') {
     return
   }
-
   window.localStorage.setItem(key, value)
 }
 
@@ -69,11 +67,7 @@ export function PortalProvider({ children }: { children: React.ReactNode }) {
       const stored = getStoredValue(SELECTED_PROJECT_KEY)
       const next = fromPath || stored || items[0].id
 
-      if (items.some((item) => item.id === next)) {
-        setSelectedProjectId(next)
-      } else {
-        setSelectedProjectId(items[0].id)
-      }
+      setSelectedProjectId(items.some((item) => item.id === next) ? next : items[0].id)
     } catch (error) {
       const normalized = normalizeApiError(error)
       setProjectError(normalized.userMessage)
@@ -120,8 +114,8 @@ export function PortalProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const createProject = useCallback(
-    async (name: string, env?: Environment) => {
-      const project = await portalApi.createProject({ name, environment: env })
+    async (name: string) => {
+      const project = await portalApi.createProject({ name })
       await refreshProjects()
       selectProject(project.id)
       router.push(`/projects/${project.id}`)

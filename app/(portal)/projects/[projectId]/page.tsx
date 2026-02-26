@@ -19,7 +19,7 @@ type Summary = {
 
 export default function ProjectOverviewPage() {
   const params = useParams<{ projectId: string }>()
-  const { projects, selectProject } = usePortal()
+  const { projects, selectProject, environment } = usePortal()
   const [summary, setSummary] = useState<Summary | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -32,10 +32,10 @@ export default function ProjectOverviewPage() {
     selectProject(params.projectId)
 
     portalApi
-      .getProjectSummary(params.projectId)
+      .getProjectSummary(params.projectId, environment)
       .then((res) => setSummary(res))
       .catch((err) => setError(normalizeApiError(err).userMessage))
-  }, [params.projectId, selectProject])
+  }, [params.projectId, selectProject, environment])
 
   return (
     <PageShell title={project?.name ?? 'Project'} description="Project summary and quick links.">
@@ -44,7 +44,7 @@ export default function ProjectOverviewPage() {
       ) : (
         <>
           <div className="flex items-center gap-3">
-            <Badge color="zinc">{project.environment ?? 'sandbox'}</Badge>
+            <Badge color="zinc">{environment}</Badge>
             <Text className="text-sm text-zinc-600">Created {formatDateTime(project.created_at)}</Text>
           </div>
 
