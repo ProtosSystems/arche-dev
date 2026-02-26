@@ -4,6 +4,8 @@ import { NextResponse } from 'next/server'
 
 const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:8000'
 
+type JsonObject = Record<string, unknown>
+
 export type ArcheApiError = {
   status: number
   message: string
@@ -49,32 +51,38 @@ function parseCookies(header: string | null): Record<string, string> {
 
 function requireToken(request: Request): ArcheApiResult<string> {
   const cookies = parseCookies(request.headers.get('cookie'))
-  const token = cookies['__session']
+  const token = cookies.__session
   if (!token) {
     return { ok: false, status: 401, message: 'Unauthorized' }
   }
-  if (process.env.NODE_ENV !== 'production') {
-    try {
-      const parts = token.split('.')
-      if (parts.length === 3) {
-        const payload = JSON.parse(
-          Buffer.from(parts[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf-8')
-        )
-        console.log('clerk_token_claims', {
-          iss: payload.iss,
-          aud: payload.aud,
-          azp: payload.azp,
-          sub: payload.sub,
-          exp: payload.exp,
-        })
-      } else {
-        console.log('clerk_token_non_jwt', { prefix: token.slice(0, 12) })
-      }
-    } catch (err) {
-      console.log('clerk_token_decode_failed', { error: String(err) })
+  return { ok: true, status: 200, data: token }
+}
+
+function getMessageFromUnknownJson(json: unknown, fallback: string): string {
+  if (typeof json !== 'object' || json === null) {
+    return fallback
+  }
+
+  const obj = json as JsonObject
+  const error = obj.error
+  if (typeof error === 'object' && error !== null) {
+    const errorMessage = (error as JsonObject).message
+    if (typeof errorMessage === 'string' && errorMessage) {
+      return errorMessage
     }
   }
-  return { ok: true, status: 200, data: token }
+
+  const detail = obj.detail
+  if (typeof detail === 'string' && detail) {
+    return detail
+  }
+
+  const message = obj.message
+  if (typeof message === 'string' && message) {
+    return message
+  }
+
+  return fallback
 }
 
 export async function archeApiRequest<T>(
@@ -105,24 +113,10 @@ export async function archeApiRequest<T>(
   }
 
   if (!res.ok) {
-    const message =
-      (json as any)?.error?.message ||
-      (json as any)?.detail ||
-      (json as any)?.message ||
-      res.statusText ||
-      'Request failed'
-    if (process.env.NODE_ENV !== 'production') {
-      console.error('archeApiRequest failed', {
-        path,
-        status: res.status,
-        message,
-        details: json,
-      })
-    }
     return {
       ok: false,
       status: res.status,
-      message,
+      message: getMessageFromUnknownJson(json, res.statusText || 'Request failed'),
       details: json,
     }
   }
@@ -134,12 +128,20 @@ export function jsonError(error: ArcheApiError) {
   return NextResponse.json({ error }, { status: error.status })
 }
 
+type OrgsResponse = {
+  data?: {
+    items?: Array<{
+      id?: string
+    }>
+  }
+}
+
 export async function resolveOrgId(request: Request): Promise<ArcheApiResult<string>> {
-  const res = await archeApiRequest<any>(request, '/v1/protected/orgs')
+  const res = await archeApiRequest<OrgsResponse>(request, '/v1/protected/orgs')
   if (!res.ok) {
     return res
   }
-  const orgId = res.data?.data?.items?.[0]?.id
+  const orgId = res.data.data?.items?.[0]?.id
   if (!orgId) {
     return { ok: false, status: 404, message: 'Organization not found' }
   }
