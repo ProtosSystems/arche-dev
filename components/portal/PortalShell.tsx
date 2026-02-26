@@ -1,6 +1,5 @@
 'use client'
 
-import { Button } from '@/components/catalyst/button'
 import { Select } from '@/components/catalyst/select'
 import { SidebarLayout } from '@/components/catalyst/sidebar-layout'
 import {
@@ -13,18 +12,19 @@ import {
   SidebarSection,
 } from '@/components/catalyst/sidebar'
 import { Text } from '@/components/catalyst/text'
+import { getEnvBaseUrl } from '@/components/portal/env'
 import { usePortal } from '@/components/portal/PortalProvider'
 import {
+  BoltIcon,
   ChartBarIcon,
+  Cog6ToothIcon,
   HomeIcon,
   KeyIcon,
   LifebuoyIcon,
   LockClosedIcon,
   ReceiptPercentIcon,
-  Cog6ToothIcon,
-  BoltIcon,
 } from '@heroicons/react/20/solid'
-import { SignOutButton, UserButton } from '@clerk/nextjs'
+import { UserButton } from '@clerk/clerk-react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 
@@ -70,17 +70,8 @@ function NavLinks() {
 
 function TopBar() {
   const router = useRouter()
-  const {
-    projects,
-    selectedProjectId,
-    selectProject,
-    loadingProjects,
-    projectError,
-    environment,
-    setEnvironment,
-  } = usePortal()
-
-  const showEnvToggle = process.env.NEXT_PUBLIC_PORTAL_ENV_TOGGLE === 'true'
+  const { projects, selectedProjectId, selectProject, loadingProjects, projectError, environment, setEnvironment } =
+    usePortal()
 
   return (
     <header className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white px-4 py-3">
@@ -88,6 +79,8 @@ function TopBar() {
         <Link href="/" className="text-sm font-semibold text-zinc-900">
           Arche Developer Portal
         </Link>
+        <Text className="text-xs uppercase tracking-wide text-zinc-500">{environment}</Text>
+        <Text className="text-xs text-zinc-500">{getEnvBaseUrl(environment)}</Text>
         <Text className="text-xs uppercase tracking-wide text-zinc-500">
           {process.env.NEXT_PUBLIC_PORTAL_MOCK === 'true' ? 'Mock mode' : 'Live mode'}
         </Text>
@@ -112,17 +105,16 @@ function TopBar() {
           ))}
         </Select>
 
-        {showEnvToggle ? (
-          <Select
-            value={environment}
-            onChange={(event) => setEnvironment(event.target.value as 'sandbox' | 'production')}
-            className="w-36"
-          >
-            <option value="sandbox">Sandbox</option>
-            <option value="production">Production</option>
-          </Select>
-        ) : null}
-        <Button plain href="/login">Account</Button>
+        <Select
+          value={environment}
+          onChange={(event) => setEnvironment(event.target.value as 'sandbox' | 'production')}
+          className="w-36"
+        >
+          <option value="sandbox">Sandbox</option>
+          <option value="production">Production</option>
+        </Select>
+
+        <UserButton afterSignOutUrl="/login" />
       </div>
 
       {projectError ? <Text className="w-full text-sm text-amber-700">{projectError}</Text> : null}
