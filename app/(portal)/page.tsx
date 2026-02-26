@@ -3,6 +3,7 @@
 import { Badge } from '@/components/catalyst/badge'
 import { Button } from '@/components/catalyst/button'
 import { Text } from '@/components/catalyst/text'
+import { getEnvBaseUrl } from '@/components/portal/env'
 import { PageShell } from '@/components/portal/PageShell'
 import { usePortal } from '@/components/portal/PortalProvider'
 import { normalizeApiError } from '@/lib/api/errors'
@@ -17,7 +18,7 @@ type SummaryState = {
 }
 
 export default function DashboardHomePage() {
-  const { selectedProject, onboardingComplete } = usePortal()
+  const { selectedProject, onboardingComplete, environment } = usePortal()
   const [summary, setSummary] = useState<SummaryState | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -28,10 +29,10 @@ export default function DashboardHomePage() {
     }
 
     portalApi
-      .getProjectSummary(selectedProject.id)
+      .getProjectSummary(selectedProject.id, environment)
       .then((res) => setSummary(res))
       .catch((err) => setError(normalizeApiError(err).userMessage))
-  }, [selectedProject])
+  }, [selectedProject, environment])
 
   if (!selectedProject) {
     return (
@@ -51,16 +52,28 @@ export default function DashboardHomePage() {
           <div className="mt-1 text-sm font-semibold">{selectedProject.name}</div>
         </div>
         <div className="rounded-xl border border-zinc-200 bg-white p-4">
+          <Text className="text-xs uppercase tracking-wide text-zinc-500">Environment</Text>
+          <div className="mt-1 text-sm font-semibold">{environment}</div>
+        </div>
+        <div className="rounded-xl border border-zinc-200 bg-white p-4">
           <Text className="text-xs uppercase tracking-wide text-zinc-500">API keys</Text>
           <div className="mt-1 text-sm font-semibold">{summary?.key_count ?? '—'}</div>
         </div>
         <div className="rounded-xl border border-zinc-200 bg-white p-4">
-          <Text className="text-xs uppercase tracking-wide text-zinc-500">Usage (24h)</Text>
-          <div className="mt-1 text-sm font-semibold">{summary?.usage_24h ?? '—'} requests</div>
+          <Text className="text-xs uppercase tracking-wide text-zinc-500">Plan</Text>
+          <div className="mt-1 text-sm font-semibold">Developer (placeholder)</div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-xl border border-zinc-200 bg-white p-4">
+          <Text className="text-xs uppercase tracking-wide text-zinc-500">Usage snapshot</Text>
+          <div className="mt-1 text-sm font-semibold">24h: {summary?.usage_24h ?? '—'} requests</div>
+          <div className="mt-1 text-sm font-semibold">7d: {summary?.usage_7d ?? '—'} requests</div>
         </div>
         <div className="rounded-xl border border-zinc-200 bg-white p-4">
-          <Text className="text-xs uppercase tracking-wide text-zinc-500">Usage (7d)</Text>
-          <div className="mt-1 text-sm font-semibold">{summary?.usage_7d ?? '—'} requests</div>
+          <Text className="text-xs uppercase tracking-wide text-zinc-500">API base URL</Text>
+          <div className="mt-1 text-sm font-semibold">{getEnvBaseUrl(environment)}</div>
         </div>
       </div>
 
