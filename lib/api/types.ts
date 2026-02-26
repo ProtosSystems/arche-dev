@@ -4,7 +4,6 @@ export type Project = {
   id: string
   name: string
   created_at: string
-  environment?: Environment
 }
 
 export type APIKey = {
@@ -24,17 +23,18 @@ export type APIKeyCreateResult = {
 export type WebhookEndpoint = {
   id: string
   url: string
-  created_at: string
-  secret_prefix: string
   enabled: boolean
+  secret_prefix: string
+  created_at: string
 }
 
 export type WebhookDelivery = {
   id: string
   ts: string
-  event: string
+  event_type: string
   status: number
-  retries: number
+  attempts: number
+  last_error: string | null
 }
 
 export type UsageRow = {
@@ -62,15 +62,26 @@ export type BillingOverview = {
 
 export type PortalApi = {
   listProjects: () => Promise<Project[]>
-  createProject: (input: { name: string; environment?: Environment }) => Promise<Project>
-  getProjectSummary: (projectId: string) => Promise<ProjectSummary>
-  listApiKeys: (projectId: string) => Promise<APIKey[]>
-  createApiKey: (projectId: string, input: { name: string }) => Promise<APIKeyCreateResult>
-  revokeApiKey: (projectId: string, keyId: string) => Promise<void>
-  listUsage: (projectId: string, range: UsageRange) => Promise<UsageRow[]>
-  listWebhooks: (projectId: string) => Promise<WebhookEndpoint[]>
-  upsertWebhook: (projectId: string, input: { url: string; enabled: boolean }) => Promise<WebhookEndpoint>
-  regenerateWebhookSecret: (projectId: string, webhookId: string) => Promise<{ secret: string; secret_prefix: string }>
-  listWebhookDeliveries: (projectId: string) => Promise<WebhookDelivery[]>
+  createProject: (input: { name: string }) => Promise<Project>
+  getProjectSummary: (projectId: string, environment: Environment) => Promise<ProjectSummary>
+  listApiKeys: (projectId: string, environment: Environment) => Promise<APIKey[]>
+  createApiKey: (projectId: string, input: { name: string; environment: Environment }) => Promise<APIKeyCreateResult>
+  revokeApiKey: (projectId: string, keyId: string, environment: Environment) => Promise<void>
+  listUsage: (projectId: string, range: UsageRange, environment: Environment) => Promise<UsageRow[]>
+  listWebhooks: (projectId: string, environment: Environment) => Promise<WebhookEndpoint[]>
+  upsertWebhook: (
+    projectId: string,
+    input: { url: string; enabled: boolean; environment: Environment }
+  ) => Promise<WebhookEndpoint>
+  regenerateWebhookSecret: (
+    projectId: string,
+    webhookId: string,
+    environment: Environment
+  ) => Promise<{ secret: string; secret_prefix: string }>
+  listWebhookDeliveries: (
+    projectId: string,
+    environment: Environment,
+    statusFilter?: 'success' | 'fail' | 'all'
+  ) => Promise<WebhookDelivery[]>
   getBillingOverview: () => Promise<BillingOverview>
 }

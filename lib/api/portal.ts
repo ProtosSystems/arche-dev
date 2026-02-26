@@ -1,6 +1,7 @@
 'use client'
 
 import { createApiClient } from '@/lib/api/client'
+import { mockPortalApi } from '@/lib/mock/portal'
 import type {
   APIKey,
   APIKeyCreateResult,
@@ -13,7 +14,6 @@ import type {
   WebhookDelivery,
   WebhookEndpoint,
 } from '@/lib/api/types'
-import { mockPortalApi } from '@/lib/mock/portal'
 
 const apiClient = createApiClient({ baseUrl: '/api/portal', retries: 2 })
 
@@ -28,49 +28,54 @@ const realPortalApi: PortalApi = {
     return res.data
   },
 
-  async getProjectSummary(projectId: string) {
-    const res = await apiClient.get<{ data: ProjectSummary }>(`/projects/${projectId}/summary`)
+  async getProjectSummary(projectId, environment) {
+    const res = await apiClient.get<{ data: ProjectSummary }>(`/projects/${projectId}/summary?environment=${environment}`)
     return res.data
   },
 
-  async listApiKeys(projectId: string) {
-    const res = await apiClient.get<{ data: APIKey[] }>(`/projects/${projectId}/api-keys`)
+  async listApiKeys(projectId, environment) {
+    const res = await apiClient.get<{ data: APIKey[] }>(`/projects/${projectId}/api-keys?environment=${environment}`)
     return res.data
   },
 
-  async createApiKey(projectId: string, input: { name: string }) {
+  async createApiKey(projectId, input) {
     const res = await apiClient.post<{ data: APIKeyCreateResult }>(`/projects/${projectId}/api-keys`, input)
     return res.data
   },
 
-  async revokeApiKey(projectId: string, keyId: string) {
-    await apiClient.post(`/projects/${projectId}/api-keys/${keyId}/revoke`)
+  async revokeApiKey(projectId, keyId, environment) {
+    await apiClient.post(`/projects/${projectId}/api-keys/${keyId}/revoke`, { environment })
   },
 
-  async listUsage(projectId: string, range: UsageRange) {
-    const res = await apiClient.get<{ data: UsageRow[] }>(`/projects/${projectId}/usage?range=${range}`)
-    return res.data
-  },
-
-  async listWebhooks(projectId: string) {
-    const res = await apiClient.get<{ data: WebhookEndpoint[] }>(`/projects/${projectId}/webhooks`)
-    return res.data
-  },
-
-  async upsertWebhook(projectId: string, input: { url: string; enabled: boolean }) {
-    const res = await apiClient.post<{ data: WebhookEndpoint }>(`/projects/${projectId}/webhooks`, input)
-    return res.data
-  },
-
-  async regenerateWebhookSecret(projectId: string, webhookId: string) {
-    const res = await apiClient.post<{ data: { secret: string; secret_prefix: string } }>(
-      `/projects/${projectId}/webhooks/${webhookId}/regenerate-secret`
+  async listUsage(projectId, range, environment) {
+    const res = await apiClient.get<{ data: UsageRow[] }>(
+      `/projects/${projectId}/usage?range=${range}&environment=${environment}`
     )
     return res.data
   },
 
-  async listWebhookDeliveries(projectId: string) {
-    const res = await apiClient.get<{ data: WebhookDelivery[] }>(`/projects/${projectId}/webhooks/deliveries`)
+  async listWebhooks(projectId, environment) {
+    const res = await apiClient.get<{ data: WebhookEndpoint[] }>(`/projects/${projectId}/webhooks?environment=${environment}`)
+    return res.data
+  },
+
+  async upsertWebhook(projectId, input) {
+    const res = await apiClient.post<{ data: WebhookEndpoint }>(`/projects/${projectId}/webhooks`, input)
+    return res.data
+  },
+
+  async regenerateWebhookSecret(projectId, webhookId, environment) {
+    const res = await apiClient.post<{ data: { secret: string; secret_prefix: string } }>(
+      `/projects/${projectId}/webhooks/${webhookId}/regenerate-secret`,
+      { environment }
+    )
+    return res.data
+  },
+
+  async listWebhookDeliveries(projectId, environment, statusFilter = 'all') {
+    const res = await apiClient.get<{ data: WebhookDelivery[] }>(
+      `/projects/${projectId}/webhooks/deliveries?environment=${environment}&status=${statusFilter}`
+    )
     return res.data
   },
 

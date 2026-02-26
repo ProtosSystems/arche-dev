@@ -3,6 +3,7 @@
 import { Button } from '@/components/catalyst/button'
 import { Input } from '@/components/catalyst/input'
 import { Text } from '@/components/catalyst/text'
+import { getEnvBaseUrl } from '@/components/portal/env'
 import { PageShell } from '@/components/portal/PageShell'
 import { usePortal } from '@/components/portal/PortalProvider'
 import { normalizeApiError } from '@/lib/api/errors'
@@ -10,7 +11,7 @@ import { portalApi } from '@/lib/api/portal'
 import { useMemo, useState } from 'react'
 
 export default function OnboardingPage() {
-  const { selectedProject, setOnboardingComplete, onboardingComplete, createProject } = usePortal()
+  const { selectedProject, setOnboardingComplete, onboardingComplete, createProject, environment } = usePortal()
   const [projectName, setProjectName] = useState('')
   const [keyName, setKeyName] = useState('Getting Started Key')
   const [createdSecret, setCreatedSecret] = useState<string | null>(null)
@@ -19,8 +20,9 @@ export default function OnboardingPage() {
 
   const curlSnippet = useMemo(() => {
     const key = createdSecret ?? '<YOUR_API_KEY>'
-    return `curl -X POST https://api.arche.fi/v1/models/infer \\\n  -H "Authorization: Bearer ${key}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model":"core-v1","input":"hello world"}'`
-  }, [createdSecret])
+    const baseUrl = getEnvBaseUrl(environment)
+    return `curl -X POST ${baseUrl}/v1/models/infer \\\n  -H "Authorization: Bearer ${key}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model":"core-v1","input":"hello world"}'`
+  }, [createdSecret, environment])
 
   const handleCreateProject = async () => {
     if (!projectName.trim()) {
@@ -31,7 +33,7 @@ export default function OnboardingPage() {
     setLoading(true)
     setError(null)
     try {
-      await createProject(projectName.trim(), 'sandbox')
+      await createProject(projectName.trim())
       setProjectName('')
     } catch (err) {
       setError(normalizeApiError(err).userMessage)
@@ -54,7 +56,7 @@ export default function OnboardingPage() {
     setLoading(true)
     setError(null)
     try {
-      const created = await portalApi.createApiKey(selectedProject.id, { name: keyName.trim() })
+      const created = await portalApi.createApiKey(selectedProject.id, { name: keyName.trim(), environment })
       setCreatedSecret(created.secret)
     } catch (err) {
       setError(normalizeApiError(err).userMessage)
@@ -67,7 +69,7 @@ export default function OnboardingPage() {
     <PageShell title="Onboarding" description="Complete the minimal golden path to start integrating.">
       <ol className="space-y-4">
         <li className="rounded-xl border border-zinc-200 bg-white p-4">
-          <div className="text-sm font-semibold">1. Create project</div>
+          <div className="text-sm font-semibold">1. Create or select project</div>
           <div className="mt-2 flex flex-wrap items-end gap-2">
             <div>
               <Text className="text-xs uppercase tracking-wide text-zinc-500">Project name</Text>
@@ -81,7 +83,7 @@ export default function OnboardingPage() {
         </li>
 
         <li className="rounded-xl border border-zinc-200 bg-white p-4">
-          <div className="text-sm font-semibold">2. Create API key</div>
+          <div className="text-sm font-semibold">2. Create API key ({environment})</div>
           <div className="mt-2 flex flex-wrap items-end gap-2">
             <div>
               <Text className="text-xs uppercase tracking-wide text-zinc-500">Key name</Text>
