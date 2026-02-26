@@ -1,10 +1,13 @@
 'use client'
 
 import { Button } from '@/components/catalyst/button'
+import { Dialog, DialogActions, DialogBody, DialogDescription, DialogTitle } from '@/components/catalyst/dialog'
 import { Input } from '@/components/catalyst/input'
+import { Select } from '@/components/catalyst/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/catalyst/table'
 import { Text } from '@/components/catalyst/text'
 import { PageShell } from '@/components/portal/PageShell'
+import { usePortal } from '@/components/portal/PortalProvider'
 import { formatDateTime } from '@/components/portal/utils'
 import { normalizeApiError } from '@/lib/api/errors'
 import { portalApi } from '@/lib/api/portal'
@@ -14,11 +17,14 @@ import { useCallback, useEffect, useState } from 'react'
 
 export default function ProjectWebhooksPage() {
   const params = useParams<{ projectId: string }>()
+  const { environment } = usePortal()
   const [webhook, setWebhook] = useState<WebhookEndpoint | null>(null)
   const [deliveries, setDeliveries] = useState<WebhookDelivery[]>([])
+  const [statusFilter, setStatusFilter] = useState<'all' | 'success' | 'fail'>('all')
   const [url, setUrl] = useState('')
   const [enabled, setEnabled] = useState(true)
   const [newSecret, setNewSecret] = useState<string | null>(null)
+  const [ackSecret, setAckSecret] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -26,8 +32,8 @@ export default function ProjectWebhooksPage() {
     setError(null)
     try {
       const [hooks, rows] = await Promise.all([
-        portalApi.listWebhooks(params.projectId),
-        portalApi.listWebhookDeliveries(params.projectId),
+        portalApi.listWebhooks(params.projectId, environment),
+        portalApi.listWebhookDeliveries(params.projectId, environment, statusFilter),
       ])
 
       const endpoint = hooks[0] ?? null
@@ -38,7 +44,7 @@ export default function ProjectWebhooksPage() {
     } catch (err) {
       setError(normalizeApiError(err).userMessage)
     }
-  }, [params.projectId])
+  }, [params.projectId, environment, statusFilter])
 
   useEffect(() => {
     load()
@@ -52,10 +58,9 @@ export default function ProjectWebhooksPage() {
 
     setBusy(true)
     setError(null)
-    setNewSecret(null)
 
     try {
-      const saved = await portalApi.upsertWebhook(params.projectId, { url: url.trim(), enabled })
+      const saved = await portalApi.upsertWebhook(params.projectId, { url: url.trim(), enabled, environment })
       setWebhook(saved)
       await load()
     } catch (err) {
@@ -75,8 +80,9 @@ export default function ProjectWebhooksPage() {
     setError(null)
 
     try {
-      const res = await portalApi.regenerateWebhookSecret(params.projectId, webhook.id)
+      const res = await portalApi.regenerateWebhookSecret(params.projectId, webhook.id, environment)
       setNewSecret(res.secret)
+      setAckSecret(false)
       await load()
     } catch (err) {
       setError(normalizeApiError(err).userMessage)
@@ -86,7 +92,7 @@ export default function ProjectWebhooksPage() {
   }
 
   return (
-    <PageShell title="Webhooks" description="Configure endpoint and inspect recent delivery attempts.">
+    <PageShell title="Webhooks" description={`Configure ${environment} endpoint and inspect deliveries.`}>
       <section className="rounded-xl border border-zinc-200 bg-white p-4">
         <div className="grid gap-3 md:grid-cols-2">
           <div>
@@ -102,7 +108,7 @@ export default function ProjectWebhooksPage() {
               Save endpoint
             </Button>
             <Button plain disabled={busy || !webhook} onClick={onRegenerate}>
-              Regenerate secret
+              Rotate secret
             </Button>
           </div>
         </div>
@@ -112,43 +118,62 @@ export default function ProjectWebhooksPage() {
         ) : (
           <Text className="mt-2 text-sm text-zinc-600">No endpoint configured yet.</Text>
         )}
-
-        {newSecret ? (
-          <div className="mt-3 rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
-            <div className="font-semibold">Copy once</div>
-            <code className="mt-1 block break-all">{newSecret}</code>
-          </div>
-        ) : null}
       </section>
 
       <section className="rounded-xl border border-zinc-200 bg-white p-4">
-        <div className="mb-2 text-sm font-semibold">Recent deliveries</div>
+        <div className="mb-2 flex items-center justify-between">
+          <div className="text-sm font-semibold">Recent deliveries</div>
+          <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'all' | 'success' | 'fail')}>
+            <option value="all">All</option>
+            <option value="success">Success</option>
+            <option value="fail">Fail</option>
+          </Select>
+        </div>
         <Table>
           <TableHead>
             <TableRow>
               <TableHeader>Timestamp</TableHeader>
               <TableHeader>Event</TableHeader>
               <TableHeader>Status</TableHeader>
-              <TableHeader>Retries</TableHeader>
+              <TableHeader>Attempts</TableHeader>
+              <TableHeader>Last Error</TableHeader>
             </TableRow>
           </TableHead>
           <TableBody>
             {deliveries.map((delivery) => (
               <TableRow key={delivery.id}>
                 <TableCell>{formatDateTime(delivery.ts)}</TableCell>
-                <TableCell>{delivery.event}</TableCell>
+                <TableCell>{delivery.event_type}</TableCell>
                 <TableCell>{delivery.status}</TableCell>
-                <TableCell>{delivery.retries}</TableCell>
+                <TableCell>{delivery.attempts}</TableCell>
+                <TableCell>{delivery.last_error ?? '—'}</TableCell>
               </TableRow>
             ))}
             {deliveries.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4}>No delivery records yet.</TableCell>
+                <TableCell colSpan={5}>No delivery records for this filter.</TableCell>
               </TableRow>
             ) : null}
           </TableBody>
         </Table>
       </section>
+
+      <Dialog open={Boolean(newSecret)} onClose={() => undefined} size="xl">
+        <DialogTitle>Copy webhook secret now</DialogTitle>
+        <DialogDescription>Webhook signing secret is shown once and cannot be retrieved later.</DialogDescription>
+        <DialogBody>
+          <code className="block break-all rounded bg-zinc-950 p-3 text-xs text-zinc-100">{newSecret ?? ''}</code>
+          <label className="mt-3 inline-flex items-center gap-2 text-sm text-zinc-700">
+            <input type="checkbox" checked={ackSecret} onChange={(event) => setAckSecret(event.target.checked)} />
+            I stored this secret in a secure location.
+          </label>
+        </DialogBody>
+        <DialogActions>
+          <Button color="dark/zinc" onClick={() => setNewSecret(null)} disabled={!ackSecret}>
+            Done
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {error ? <Text className="text-sm text-rose-700">{error}</Text> : null}
     </PageShell>
