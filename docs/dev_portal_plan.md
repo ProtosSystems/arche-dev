@@ -1,12 +1,11 @@
 # Developer Portal MVP Plan
 
-## Discovery Summary
-- Next.js App Router is used (`app/` directory).
-- Existing UI primitives come from Catalyst/Tailwind components in `components/catalyst`.
-- Clerk is already integrated and now used with middleware route protection.
-- Existing `/dashboard/*` IA was removed in favor of canonical portal IA.
+## Phase 0 Discovery
+- Next.js App Router is used from the repo root `app/`.
+- UI kit is Catalyst + Tailwind components in `components/catalyst`.
+- Clerk is present and used for auth middleware and login UI.
 
-## Canonical Route Map Implemented
+## Canonical Route Map
 Public:
 - `/login`
 
@@ -23,13 +22,15 @@ Authenticated:
 - `/security`
 - `/support`
 
-## Delivery Plan
-1. Routing/layout/navigation shell with global project picker and consistent page shells.
-2. Auth middleware with Clerk + explicit dev bypass (`AUTH_DISABLED_FOR_DEV=true`).
-3. Typed client layer (`lib/api/*`) and deterministic mock layer (`NEXT_PUBLIC_PORTAL_MOCK=true`).
-4. MVP pages for onboarding, projects, API keys, usage, webhooks, billing, settings, security, support.
-5. Quality gate: lint/build checks and documentation.
+## Implementation Plan
+1. Build a single authenticated shell with project picker + environment toggle.
+2. Enforce auth gating via middleware (`/login` only public).
+3. Implement typed API layer with retries/timeout/error normalization.
+4. Implement deterministic mock mode with localStorage persistence.
+5. Build required pages with empty/error/loading states and copy-once secret UX.
+6. Run lint/build and document testing gaps.
 
-## Testing Notes
-- This repo currently has no preconfigured unit/integration test runner for frontend route/middleware tests.
-- Required minimum tests are documented as a follow-up gap until test tooling is added.
+## Testing Status
+- No dedicated frontend unit/integration test framework is configured in this repo.
+- Added `scripts/portal-smoke.mjs` + `npm run smoke:portal` as a minimal structural check.
+- Follow-up needed if full middleware/component tests are required.
