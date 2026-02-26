@@ -1,0 +1,21 @@
+@import 'tailwindcss';
+@config '../tailwind.config.ts';
+
+@theme {
+  --font-sans: 'Switzer', system-ui, sans-serif;
+  --font-sans--font-feature-settings: 'cv11';
+}
+
+:root {
+  --protos-navy: #0b1f3b;
+  --protos-accent: #3a4f7a;
+  --protos-surface: #ffffff;
+  --protos-surface-muted: #f8fafc;
+  --protos-text: #0f172a;
+}
+
+.dark {
+  --protos-surface: #0f172a;
+  --protos-surface-muted: #0b1220;
+  --protos-text: #f8fafc;
+}
