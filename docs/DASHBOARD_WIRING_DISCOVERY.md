@@ -44,3 +44,18 @@ No HTTP endpoints found for entitlements read in `arche_api/src/arche_api/adapte
 - Next.js App Router: present (`arche_dev/app` with `layout.tsx`).
 - Catalyst shell: present (`arche_dev/app/dashboard/layout.tsx` uses `AppShell`).
 - Clerk installed: not present (no Clerk packages in `arche_dev/package.json`, no Clerk usage in code).
+
+## Overview Signals (2026-02-27)
+
+- `app/(portal)/page.tsx` now assembles a customer-safe Overview from BFF endpoints in parallel:
+  - `GET /api/usage/summary?window=24h|7d`
+  - `GET /api/usage/timeseries?window=24h|7d`
+  - `GET /api/usage/by-endpoint?window=24h|7d`
+  - `GET /api/keys?env_id=<uuid>`
+  - `GET /api/entitlements`
+  - `GET /api/billing/subscription`
+- Header forwarding was updated in `lib/arche-api.server.ts` to pass `X-Env-Id` to backend requests. The Overview frontend includes `x-env-id` on env-sensitive BFF calls after resolving the selected project environment UUID.
+- Overview KPI intent:
+  - Is it working? `Requests`, `Error rate`, chart trend.
+  - Am I rate-limited/erroring? `Rate-limited` KPI + endpoint table.
+  - What next? contextual CTA (`Create API key` vs `View docs`) + quick actions + onboarding checklist for new users.

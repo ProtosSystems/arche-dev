@@ -1,9 +1,11 @@
 'use client'
 
-import { SignIn } from '@clerk/clerk-react'
+import { SignIn } from '@clerk/nextjs'
 
 export default function LoginPage() {
-  if (process.env.AUTH_DISABLED_FOR_DEV === 'true') {
+  const authDisabled = process.env.NEXT_PUBLIC_AUTH_DISABLED_FOR_DEV === 'true'
+
+  if (authDisabled) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
         <div className="w-full max-w-md rounded-xl border border-zinc-200 bg-white p-8">

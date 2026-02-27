@@ -28,10 +28,13 @@ export class ApiError extends Error {
 
 export function normalizeApiError(err: unknown): NormalizedApiError {
   if (err instanceof ApiError) {
+    const fallbackMessage = USER_MESSAGES[err.code] ?? USER_MESSAGES.UNKNOWN
+    const unknownWithMessage = err.code === 'UNKNOWN' && typeof err.message === 'string' && err.message.trim().length > 0
+    const userMessage = unknownWithMessage ? err.message.trim().slice(0, 220) : fallbackMessage
     return {
       status: err.status,
       code: err.code,
-      userMessage: USER_MESSAGES[err.code] ?? USER_MESSAGES.UNKNOWN,
+      userMessage,
       debugMessage: err.message,
     }
   }

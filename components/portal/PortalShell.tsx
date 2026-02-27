@@ -24,11 +24,12 @@ import {
   LockClosedIcon,
   ReceiptPercentIcon,
 } from '@heroicons/react/20/solid'
-import { UserButton } from '@clerk/clerk-react'
+import { UserButton } from '@clerk/nextjs'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 
 type NavItem = {
+  id: string
   label: string
   href: string
   icon: React.ComponentType<{ className?: string }>
@@ -42,14 +43,14 @@ function NavLinks() {
   const webhooksHref = selectedProjectId ? `/projects/${selectedProjectId}/webhooks` : '/projects'
 
   const links: NavItem[] = [
-    { label: 'Dashboard', href: '/', icon: HomeIcon },
-    { label: 'Projects', href: '/projects', icon: KeyIcon },
-    { label: 'Usage', href: usageHref, icon: ChartBarIcon },
-    { label: 'Webhooks', href: webhooksHref, icon: BoltIcon },
-    { label: 'Billing', href: '/billing', icon: ReceiptPercentIcon },
-    { label: 'Settings', href: '/settings', icon: Cog6ToothIcon },
-    { label: 'Security', href: '/security', icon: LockClosedIcon },
-    { label: 'Support', href: '/support', icon: LifebuoyIcon },
+    { id: 'dashboard', label: 'Dashboard', href: '/', icon: HomeIcon },
+    { id: 'projects', label: 'Projects', href: '/projects', icon: KeyIcon },
+    { id: 'usage', label: 'Usage', href: usageHref, icon: ChartBarIcon },
+    { id: 'webhooks', label: 'Webhooks', href: webhooksHref, icon: BoltIcon },
+    { id: 'billing', label: 'Billing', href: '/billing', icon: ReceiptPercentIcon },
+    { id: 'settings', label: 'Settings', href: '/settings', icon: Cog6ToothIcon },
+    { id: 'security', label: 'Security', href: '/security', icon: LockClosedIcon },
+    { id: 'support', label: 'Support', href: '/support', icon: LifebuoyIcon },
   ]
 
   return (
@@ -58,7 +59,7 @@ function NavLinks() {
         const current = pathname === link.href || pathname.startsWith(`${link.href}/`)
         const Icon = link.icon
         return (
-          <SidebarItem key={link.href} href={link.href} current={current}>
+          <SidebarItem key={link.id} href={link.href} current={current}>
             <Icon className="size-4" />
             <SidebarLabel>{link.label}</SidebarLabel>
           </SidebarItem>
@@ -72,6 +73,7 @@ function TopBar() {
   const router = useRouter()
   const { projects, selectedProjectId, selectProject, loadingProjects, projectError, environment, setEnvironment } =
     usePortal()
+  const authDisabled = process.env.NEXT_PUBLIC_AUTH_DISABLED_FOR_DEV === 'true'
 
   return (
     <header className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white px-4 py-3">
@@ -114,7 +116,11 @@ function TopBar() {
           <option value="production">Production</option>
         </Select>
 
-        <UserButton afterSignOutUrl="/login" />
+        {authDisabled ? (
+          <div className="rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-500">Auth disabled (dev)</div>
+        ) : (
+          <UserButton afterSignOutUrl="/login" />
+        )}
       </div>
 
       {projectError ? <Text className="w-full text-sm text-amber-700">{projectError}</Text> : null}

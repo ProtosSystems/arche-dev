@@ -11,7 +11,7 @@
     "smoke:portal": "node scripts/portal-smoke.mjs"
   },
   "dependencies": {
-    "@clerk/nextjs": "^5.0.0",
+    "@clerk/nextjs": "^6.0.0",
     "@headlessui/react": "^2.2.6",
     "@heroicons/react": "^2.2.0",
     "clsx": "^2.1.1",

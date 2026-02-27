@@ -12,6 +12,7 @@ import { useMemo, useState } from 'react'
 
 export default function OnboardingPage() {
   const { selectedProject, setOnboardingComplete, onboardingComplete, createProject, environment } = usePortal()
+  const projectCreationEnabled = false
   const [projectName, setProjectName] = useState('')
   const [keyName, setKeyName] = useState('Getting Started Key')
   const [createdSecret, setCreatedSecret] = useState<string | null>(null)
@@ -25,6 +26,11 @@ export default function OnboardingPage() {
   }, [createdSecret, environment])
 
   const handleCreateProject = async () => {
+    if (!projectCreationEnabled) {
+      setError('Project creation is currently disabled in this portal.')
+      return
+    }
+
     if (!projectName.trim()) {
       setError('Project name is required.')
       return
@@ -75,10 +81,13 @@ export default function OnboardingPage() {
               <Text className="text-xs uppercase tracking-wide text-zinc-500">Project name</Text>
               <Input value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="My App" />
             </div>
-            <Button color="dark/zinc" disabled={loading} onClick={handleCreateProject}>
+            <Button color="dark/zinc" disabled={loading || !projectCreationEnabled} onClick={handleCreateProject}>
               Create project
             </Button>
           </div>
+          {!projectCreationEnabled ? (
+            <Text className="mt-2 text-xs text-zinc-600">Project creation is currently managed outside this portal.</Text>
+          ) : null}
           <Text className="mt-2 text-xs">Selected project: {selectedProject?.name ?? 'None'}</Text>
         </li>
 

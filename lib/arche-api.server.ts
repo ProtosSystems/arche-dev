@@ -29,6 +29,10 @@ function buildHeaders(request: Request, init?: RequestInit, token?: string) {
   if (orgId) {
     headers.set('X-Org-Id', orgId)
   }
+  const envId = request.headers.get('x-env-id')
+  if (envId) {
+    headers.set('X-Env-Id', envId)
+  }
   if (init?.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
   }
@@ -141,7 +145,21 @@ export async function resolveOrgId(request: Request): Promise<ArcheApiResult<str
   if (!res.ok) {
     return res
   }
-  const orgId = res.data.data?.items?.[0]?.id
+
+  const items = res.data.data?.items ?? []
+  if (items.length === 0) {
+    return { ok: false, status: 404, message: 'Organization not found' }
+  }
+
+  const cookies = parseCookies(request.headers.get('cookie'))
+  const headerOrgId = request.headers.get('x-org-id')
+  const cookieOrgId = cookies.org_id
+  const preferredOrgId = headerOrgId || cookieOrgId
+  if (preferredOrgId && items.some((item) => item.id === preferredOrgId)) {
+    return { ok: true, status: 200, data: preferredOrgId }
+  }
+
+  const orgId = items[0]?.id
   if (!orgId) {
     return { ok: false, status: 404, message: 'Organization not found' }
   }

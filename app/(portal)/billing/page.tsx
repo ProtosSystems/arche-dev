@@ -1,59 +1,105 @@
 'use client'
 
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/catalyst/table'
 import { Text } from '@/components/catalyst/text'
 import { PageShell } from '@/components/portal/PageShell'
-import { formatShortDate } from '@/components/portal/utils'
+import { usePortal } from '@/components/portal/PortalProvider'
+import { createApiClient } from '@/lib/api/client'
 import { normalizeApiError } from '@/lib/api/errors'
-import { portalApi } from '@/lib/api/portal'
-import type { BillingOverview } from '@/lib/api/types'
+import type { BillingSubscription, ControlPlaneEnvironmentList, EntitlementDashboard, SuccessEnvelope } from '@/lib/api/types'
 import { useEffect, useState } from 'react'
 
+const apiClient = createApiClient({ baseUrl: '', retries: 2 })
+
 export default function BillingPage() {
-  const [data, setData] = useState<BillingOverview | null>(null)
+  const { selectedProject, environment } = usePortal()
+  const [entitlements, setEntitlements] = useState<EntitlementDashboard | null>(null)
+  const [subscription, setSubscription] = useState<BillingSubscription | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    portalApi
-      .getBillingOverview()
-      .then((res) => setData(res))
-      .catch((err) => setError(normalizeApiError(err).userMessage))
-  }, [])
+    if (!selectedProject) {
+      setEntitlements(null)
+      setSubscription(null)
+      return
+    }
+
+    let active = true
+    setError(null)
+
+    const load = async () => {
+      try {
+        const envs = await apiClient.get<SuccessEnvelope<ControlPlaneEnvironmentList>>(
+          `/api/projects/${selectedProject.id}/environments`
+        )
+        const env = envs.data.items.find((item) => item.kind === environment)
+        if (!env) {
+          throw new Error(`No ${environment} environment found for selected project`)
+        }
+        const headers = { 'x-env-id': env.id }
+
+        const [entitlementsRes, subscriptionRes] = await Promise.all([
+          apiClient.get<SuccessEnvelope<EntitlementDashboard>>('/api/entitlements', headers),
+          apiClient.get<SuccessEnvelope<BillingSubscription>>('/api/billing/subscription', headers),
+        ])
+
+        if (!active) {
+          return
+        }
+        setEntitlements(entitlementsRes.data)
+        setSubscription(subscriptionRes.data)
+      } catch (err) {
+        if (active) {
+          setError(normalizeApiError(err).userMessage)
+        }
+      }
+    }
+
+    void load()
+    return () => {
+      active = false
+    }
+  }, [selectedProject, environment])
+
+  if (!selectedProject) {
+    return (
+      <PageShell title="Billing" description="Current plan and subscription status.">
+        <div className="rounded-xl border border-zinc-200 bg-white p-4 text-sm text-zinc-600">
+          Select a project to view billing details.
+        </div>
+      </PageShell>
+    )
+  }
 
   return (
-    <PageShell title="Billing" description="Current plan and latest invoices.">
+    <PageShell title="Billing" description={`Current ${environment} plan and subscription status.`}>
       <section className="rounded-xl border border-zinc-200 bg-white p-4">
         <div className="text-sm font-semibold">Plan</div>
-        <Text className="mt-1">{data ? `${data.plan_name} (${data.plan_status})` : 'Loading...'}</Text>
+        <Text className="mt-1">
+          {entitlements ? `${entitlements.plan.name} (${entitlements.plan.status})` : 'Loading...'}
+        </Text>
       </section>
 
       <section className="rounded-xl border border-zinc-200 bg-white p-4">
-        <div className="mb-2 text-sm font-semibold">Invoices</div>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableHeader>ID</TableHeader>
-              <TableHeader>Date</TableHeader>
-              <TableHeader>Amount</TableHeader>
-              <TableHeader>Status</TableHeader>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {(data?.invoices ?? []).map((invoice) => (
-              <TableRow key={invoice.id}>
-                <TableCell>{invoice.id}</TableCell>
-                <TableCell>{formatShortDate(invoice.issued_at)}</TableCell>
-                <TableCell>${invoice.amount_usd}</TableCell>
-                <TableCell>{invoice.status}</TableCell>
-              </TableRow>
-            ))}
-            {(data?.invoices ?? []).length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={4}>No invoice data available yet.</TableCell>
-              </TableRow>
-            ) : null}
-          </TableBody>
-        </Table>
+        <div className="text-sm font-semibold">Subscription</div>
+        <Text className="mt-1">{subscription ? subscription.status : 'Loading...'}</Text>
+        <Text className="mt-1 text-xs text-zinc-600">
+          Current period end: {subscription?.current_period_end ? new Date(subscription.current_period_end).toLocaleString() : 'N/A'}
+        </Text>
+      </section>
+
+      <section className="rounded-xl border border-zinc-200 bg-white p-4">
+        <div className="text-sm font-semibold">Entitlements</div>
+        <Text className="mt-1 text-sm">
+          Requests: {entitlements?.requests.limit === null ? 'Unlimited' : `${entitlements?.requests.used ?? 0} used`}
+        </Text>
+        <Text className="mt-1 text-sm">
+          AI budget:{' '}
+          {entitlements?.ai_budget
+            ? entitlements.ai_budget.limit_usd === null
+              ? 'Unlimited'
+              : `$${entitlements.ai_budget.used_usd} used of $${entitlements.ai_budget.limit_usd}`
+            : 'N/A'}
+        </Text>
       </section>
 
       {error ? <Text className="text-sm text-amber-700">{error}</Text> : null}

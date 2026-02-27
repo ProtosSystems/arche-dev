@@ -15,6 +15,7 @@ import { useState } from 'react'
 export default function ProjectsPage() {
   const router = useRouter()
   const { projects, createProject, loadingProjects, projectError } = usePortal()
+  const projectCreationEnabled = false
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -43,9 +44,12 @@ export default function ProjectsPage() {
   return (
     <PageShell title="Projects" description="Create and manage your API projects.">
       <section className="rounded-xl border border-zinc-200 bg-white p-4">
-        <Button color="dark/zinc" onClick={() => setOpenCreate(true)} disabled={loadingProjects}>
+        <Button color="dark/zinc" onClick={() => setOpenCreate(true)} disabled={loadingProjects || !projectCreationEnabled}>
           Create project
         </Button>
+        {!projectCreationEnabled ? (
+          <Text className="mt-2 text-xs text-zinc-600">Project creation is currently managed outside this portal.</Text>
+        ) : null}
         {projectError ? <Text className="mt-2 text-sm text-amber-700">{projectError}</Text> : null}
       </section>
 
@@ -79,7 +83,7 @@ export default function ProjectsPage() {
         </Table>
       </section>
 
-      <Dialog open={openCreate} onClose={() => setOpenCreate(false)} size="lg">
+      <Dialog open={openCreate && projectCreationEnabled} onClose={() => setOpenCreate(false)} size="lg">
         <DialogTitle>Create Project</DialogTitle>
         <DialogDescription>Projects are top-level containers for keys, usage, and webhooks.</DialogDescription>
         <DialogBody>
