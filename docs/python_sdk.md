@@ -68,3 +68,5 @@ except APIError as exc:
 ```
 
 Use the reported request ID when contacting support.
+
+For an end-to-end deterministic replay workflow with explicit as-of and version semantics, see [reproducibility.md](./reproducibility.md).

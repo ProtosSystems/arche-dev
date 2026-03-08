@@ -23,3 +23,5 @@ curl -X GET 'https://api.arche.fi/v1/edgar/derived-metrics/time-series?ciks=0000
 ```
 
 Both calls should be reproducible for the same inputs and environment.
+
+For a full as-of and version-sequence workflow, see [reproducibility.md](./reproducibility.md).

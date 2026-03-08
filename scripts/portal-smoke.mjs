@@ -62,6 +62,19 @@ if (!onboarding.includes('https://docs.arche.fi/python_sdk')) {
   process.exit(1)
 }
 
+const overview = fs.readFileSync('app/(portal)/page.tsx', 'utf8')
+const overviewSignals = ['Setup status', 'Integration health', 'Limits & plan', 'Trust signals', 'Last observed request']
+for (const marker of overviewSignals) {
+  if (!overview.includes(marker)) {
+    console.error(`Overview is missing expected high-signal marker: ${marker}`)
+    process.exit(1)
+  }
+}
+if (overview.includes('UsageChart') || overview.includes('HealthStats') || overview.includes('EntitlementsCard')) {
+  console.error('Overview still includes removed low-value dashboard widgets.')
+  process.exit(1)
+}
+
 const forbiddenCopyMarkers = ['coming soon', 'mark onboarding complete']
 const coreFiles = [
   'app/(portal)/onboarding/page.tsx',

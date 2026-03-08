@@ -5,6 +5,7 @@ const docsFiles = [
   'docs/golden_path.md',
   'docs/authentication.md',
   'docs/python_sdk.md',
+  'docs/reproducibility.md',
   'docs/troubleshooting/request-ids.md',
 ]
 const openapiPath = process.env.OPENAPI_PATH || 'docs/contracts/openapi-min.json'
@@ -97,6 +98,19 @@ function validatePythonSdkBlocks(file, content, failures) {
   }
 }
 
+function validateReproducibilityDoc(file, content, failures) {
+  if (file !== 'docs/reproducibility.md') {
+    return
+  }
+
+  if (!content.includes('as_of=')) {
+    failures.push(`${file}: reproducibility walkthrough must include explicit as_of semantics`)
+  }
+  if (!content.includes('from_version_sequence=') || !content.includes('to_version_sequence=')) {
+    failures.push(`${file}: reproducibility walkthrough must include explicit version sequence comparison`)
+  }
+}
+
 for (const file of docsFiles) {
   if (!fs.existsSync(file)) {
     failures.push(`Missing docs file: ${file}`)
@@ -118,6 +132,7 @@ for (const file of docsFiles) {
   }
 
   validatePythonSdkBlocks(file, content, failures)
+  validateReproducibilityDoc(file, content, failures)
 
   const contractBlocks = [
     ...content.matchAll(
