@@ -33,7 +33,12 @@ export default function BillingPage() {
         )
         const env = envs.data.items.find((item) => item.kind === environment)
         if (!env) {
-          throw new Error(`No ${environment} environment found for selected project`)
+          if (active) {
+            setEntitlements(null)
+            setSubscription(null)
+            setError(`No ${environment} environment exists for this project. Create it or switch environment.`)
+          }
+          return
         }
         const headers = { 'x-env-id': env.id }
 

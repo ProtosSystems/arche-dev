@@ -7,8 +7,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "smoke:portal": "node scripts/portal-smoke.mjs"
+    "lint": "eslint .",
+    "smoke:portal": "node scripts/portal-smoke.mjs",
+    "check:docs-contract": "node scripts/validate-docs-contract.mjs"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.0.0",

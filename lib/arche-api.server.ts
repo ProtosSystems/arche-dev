@@ -18,6 +18,7 @@ export type ArcheApiResult<T> =
 
 function buildHeaders(request: Request, init?: RequestInit, token?: string) {
   const headers = new Headers(init?.headers)
+  const cookies = parseCookies(request.headers.get('cookie'))
   if (token) {
     headers.set('Authorization', `Bearer ${token}`)
   }
@@ -25,7 +26,7 @@ function buildHeaders(request: Request, init?: RequestInit, token?: string) {
   if (requestId) {
     headers.set('x-request-id', requestId)
   }
-  const orgId = request.headers.get('x-org-id')
+  const orgId = request.headers.get('x-org-id') || cookies.org_id
   if (orgId) {
     headers.set('X-Org-Id', orgId)
   }

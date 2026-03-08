@@ -1,36 +1,35 @@
-# Developer Portal MVP Plan
+# Developer Portal MVP Plan (Phase 1 Complete)
 
-## Phase 0 Discovery
-- Next.js App Router is used from the repo root `app/`.
-- UI kit is Catalyst + Tailwind components in `components/catalyst`.
-- Clerk is present and used for auth middleware and login UI.
+## Outcomes
+- Core navigation reduced to high-value surfaces only.
+- Placeholder and non-functional portal flows removed from the core user journey.
+- Real onboarding path implemented:
+  - sign in
+  - select project context
+  - create API key
+  - copy/paste real request
+  - call real API endpoint
+- Auth guidance unified around `X-Api-Key` for external onboarding.
 
 ## Canonical Route Map
 Public:
 - `/login`
 
-Authenticated:
+Authenticated core:
 - `/`
 - `/onboarding`
-- `/projects`
-- `/projects/[projectId]`
-- `/projects/[projectId]/api-keys`
-- `/projects/[projectId]/usage`
-- `/projects/[projectId]/webhooks`
+- `/keys`
+- `/usage`
 - `/billing`
-- `/settings`
-- `/security`
-- `/support`
+- `/account`
 
-## Implementation Plan
-1. Build a single authenticated shell with project picker + environment toggle.
-2. Enforce auth gating via middleware (`/login` only public).
-3. Implement typed API layer with retries/timeout/error normalization.
-4. Implement deterministic mock mode with localStorage persistence.
-5. Build required pages with empty/error/loading states and copy-once secret UX.
-6. Run lint/build and document testing gaps.
-
-## Testing Status
-- No dedicated frontend unit/integration test framework is configured in this repo.
-- Added `scripts/portal-smoke.mjs` + `npm run smoke:portal` as a minimal structural check.
-- Follow-up needed if full middleware/component tests are required.
+## Guardrails Added
+- `scripts/portal-smoke.mjs`
+  - validates core nav items
+  - rejects removed nav items
+  - rejects placeholder copy in core pages
+  - validates onboarding canonical endpoint + auth header
+- `scripts/validate-docs-contract.mjs`
+  - validates quickstart/golden-path documented endpoints against OpenAPI
+  - rejects non-canonical auth examples
+  - rejects docs path drift under `/docs`

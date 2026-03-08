@@ -43,8 +43,18 @@ export function normalizeApiError(err: unknown): NormalizedApiError {
     return { status: 408, code: 'TIMEOUT', userMessage: USER_MESSAGES.TIMEOUT, debugMessage: err.message }
   }
 
-  if (err instanceof Error) {
+  if (err instanceof TypeError) {
     return { status: 0, code: 'NETWORK', userMessage: USER_MESSAGES.NETWORK, debugMessage: err.message }
+  }
+
+  if (err instanceof Error) {
+    const message = err.message?.trim()
+    return {
+      status: 500,
+      code: 'UNKNOWN',
+      userMessage: message ? message.slice(0, 220) : USER_MESSAGES.UNKNOWN,
+      debugMessage: err.message,
+    }
   }
 
   return { status: 500, code: 'UNKNOWN', userMessage: USER_MESSAGES.UNKNOWN }

@@ -12,10 +12,8 @@ type PortalContextValue = {
   selectedProject: Project | null
   loadingProjects: boolean
   projectError: string | null
-  onboardingComplete: boolean
   environment: Environment
   setEnvironment: (value: Environment) => void
-  setOnboardingComplete: (value: boolean) => void
   selectProject: (projectId: string) => void
   refreshProjects: () => Promise<void>
   createProject: (name: string) => Promise<Project>
@@ -24,7 +22,6 @@ type PortalContextValue = {
 const PortalContext = createContext<PortalContextValue | null>(null)
 
 const SELECTED_PROJECT_KEY = 'portal_selected_project_id'
-const ONBOARDING_KEY = 'portal_onboarding_complete'
 const ENV_KEY = 'portal_environment'
 
 function getStoredValue(key: string) {
@@ -48,7 +45,6 @@ export function PortalProvider({ children }: { children: React.ReactNode }) {
   const [loadingProjects, setLoadingProjects] = useState(true)
   const [projectError, setProjectError] = useState<string | null>(null)
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
-  const [onboardingComplete, setOnboardingCompleteState] = useState(false)
   const [environment, setEnvironmentState] = useState<Environment>('sandbox')
 
   const refreshProjects = useCallback(async () => {
@@ -87,9 +83,6 @@ export function PortalProvider({ children }: { children: React.ReactNode }) {
     if (env === 'sandbox' || env === 'production') {
       setEnvironmentState(env)
     }
-
-    const onboarding = getStoredValue(ONBOARDING_KEY)
-    setOnboardingCompleteState(onboarding === 'true')
   }, [])
 
   useEffect(() => {
@@ -97,11 +90,6 @@ export function PortalProvider({ children }: { children: React.ReactNode }) {
       setStoredValue(SELECTED_PROJECT_KEY, selectedProjectId)
     }
   }, [selectedProjectId])
-
-  const setOnboardingComplete = useCallback((value: boolean) => {
-    setOnboardingCompleteState(value)
-    setStoredValue(ONBOARDING_KEY, String(value))
-  }, [])
 
   const setEnvironment = useCallback((value: Environment) => {
     setEnvironmentState(value)
@@ -135,10 +123,8 @@ export function PortalProvider({ children }: { children: React.ReactNode }) {
       selectedProject,
       loadingProjects,
       projectError,
-      onboardingComplete,
       environment,
       setEnvironment,
-      setOnboardingComplete,
       selectProject,
       refreshProjects,
       createProject,
@@ -149,10 +135,8 @@ export function PortalProvider({ children }: { children: React.ReactNode }) {
       selectedProject,
       loadingProjects,
       projectError,
-      onboardingComplete,
       environment,
       setEnvironment,
-      setOnboardingComplete,
       selectProject,
       refreshProjects,
       createProject,
