@@ -70,7 +70,7 @@ function mapTimeseriesToRows(payload: UsageTimeseries): UsageRow[] {
     if ('status' in item && 'count' in item && 'ts_bucket' in item) {
       rows.push({
         ts_bucket: item.ts_bucket,
-        route: item.route ?? 'unknown',
+        route: item.route ?? null,
         status: item.status,
         count: item.count,
       })
@@ -82,7 +82,7 @@ function mapTimeseriesToRows(payload: UsageTimeseries): UsageRow[] {
     if (successCount > 0) {
       rows.push({
         ts_bucket: tsBucket,
-        route: item.endpoint_class ?? 'all',
+        route: item.endpoint_class ?? null,
         status: 200,
         count: successCount,
       })
@@ -90,7 +90,7 @@ function mapTimeseriesToRows(payload: UsageTimeseries): UsageRow[] {
     if (item.errors > 0) {
       rows.push({
         ts_bucket: tsBucket,
-        route: item.endpoint_class ?? 'all',
+        route: item.endpoint_class ?? null,
         status: 500,
         count: item.errors,
       })

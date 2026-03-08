@@ -1,6 +1,12 @@
 import fs from 'node:fs'
 
-const docsFiles = ['docs/quickstart.md', 'docs/golden_path.md', 'docs/authentication.md']
+const docsFiles = [
+  'docs/quickstart.md',
+  'docs/golden_path.md',
+  'docs/authentication.md',
+  'docs/python_sdk.md',
+  'docs/troubleshooting/request-ids.md',
+]
 const openapiPath = process.env.OPENAPI_PATH || 'docs/contracts/openapi-min.json'
 
 if (!fs.existsSync(openapiPath)) {
@@ -71,6 +77,26 @@ function requiredParameters(operation) {
   return (operation.parameters || []).filter((parameter) => parameter && parameter.required)
 }
 
+function validatePythonSdkBlocks(file, content, failures) {
+  const pythonBlocks = [...content.matchAll(/```python\n([\s\S]*?)```/g)].map((match) => match[1])
+  if (file === 'docs/python_sdk.md' && pythonBlocks.length === 0) {
+    failures.push(`${file}: expected at least one Python SDK example block`)
+    return
+  }
+
+  for (const block of pythonBlocks) {
+    if (block.includes('ArcheClient(') && !block.includes('from arche_sdk import ArcheClient')) {
+      failures.push(`${file}: Python SDK example must import ArcheClient explicitly`)
+    }
+    if (block.includes('ArcheClient(') && !block.includes('with ArcheClient(')) {
+      failures.push(`${file}: Python SDK example should use context-manager pattern 'with ArcheClient(...) as client'`)
+    }
+    if (block.includes('ArcheClient(') && !/api_key\s*=/.test(block) && !/bearer_token\s*=/.test(block)) {
+      failures.push(`${file}: Python SDK example must provide explicit auth argument (api_key or bearer_token)`)
+    }
+  }
+}
+
 for (const file of docsFiles) {
   if (!fs.existsSync(file)) {
     failures.push(`Missing docs file: ${file}`)
@@ -90,6 +116,8 @@ for (const file of docsFiles) {
   if (/arche\.fi\/docs|docs\.arche\.fi\/docs/.test(content)) {
     failures.push(`${file}: contains incorrect docs path under /docs`)
   }
+
+  validatePythonSdkBlocks(file, content, failures)
 
   const contractBlocks = [
     ...content.matchAll(
@@ -130,6 +158,13 @@ for (const file of docsFiles) {
     }
 
     const headers = getHeadersFromCurl(snippet)
+
+    if (!headers.has('x-request-id')) {
+      failures.push(`${file}: missing X-Request-ID header for ${taggedMethod} ${contractPath}`)
+    }
+    if (!headers.has('accept')) {
+      failures.push(`${file}: missing Accept header for ${taggedMethod} ${contractPath}`)
+    }
 
     if (operationRequiresAuth(contractPath, operation)) {
       const hasAuth = headers.has('x-api-key') || headers.has('authorization')

@@ -10,6 +10,9 @@
   - copy/paste real request
   - call real API endpoint
 - Auth guidance unified around `X-Api-Key` for external onboarding.
+- Request-aware error UX added with request ID surfacing and troubleshooting links.
+- Synthetic billing/entitlements fallback behavior removed in BFF routes.
+- Python SDK promoted as primary post-cURL integration path.
 
 ## Canonical Route Map
 Public:

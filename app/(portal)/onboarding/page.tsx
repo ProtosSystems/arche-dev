@@ -3,9 +3,11 @@
 import { Button } from '@/components/catalyst/button'
 import { Input } from '@/components/catalyst/input'
 import { Text } from '@/components/catalyst/text'
+import { ApiErrorNotice } from '@/components/portal/ApiErrorNotice'
 import { getEnvBaseUrl } from '@/components/portal/env'
 import { PageShell } from '@/components/portal/PageShell'
 import { usePortal } from '@/components/portal/PortalProvider'
+import type { NormalizedApiError } from '@/lib/api/errors'
 import { normalizeApiError } from '@/lib/api/errors'
 import { portalApi } from '@/lib/api/portal'
 import { useMemo, useState } from 'react'
@@ -14,7 +16,7 @@ export default function OnboardingPage() {
   const { selectedProject, environment } = usePortal()
   const [keyName, setKeyName] = useState('Quickstart Key')
   const [createdSecret, setCreatedSecret] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<NormalizedApiError | null>(null)
   const [loading, setLoading] = useState(false)
 
   const curlSnippet = useMemo(() => {
@@ -25,12 +27,22 @@ export default function OnboardingPage() {
 
   const handleCreateKey = async () => {
     if (!selectedProject) {
-      setError('No project context found. Select a project from the header first.')
+      setError({
+        status: 422,
+        code: 'UNKNOWN',
+        userMessage: 'No project context found. Select a project from the header first.',
+        troubleshootingUrl: 'https://docs.arche.fi/troubleshooting/request-ids',
+      })
       return
     }
 
     if (!keyName.trim()) {
-      setError('API key name is required.')
+      setError({
+        status: 422,
+        code: 'UNKNOWN',
+        userMessage: 'API key name is required.',
+        troubleshootingUrl: 'https://docs.arche.fi/troubleshooting/request-ids',
+      })
       return
     }
 
@@ -40,7 +52,7 @@ export default function OnboardingPage() {
       const created = await portalApi.createApiKey(selectedProject.id, { name: keyName.trim(), environment })
       setCreatedSecret(created.secret)
     } catch (err) {
-      setError(normalizeApiError(err).userMessage)
+      setError(normalizeApiError(err))
     } finally {
       setLoading(false)
     }
@@ -96,10 +108,18 @@ export default function OnboardingPage() {
           >
             Open docs quickstart
           </a>
+          <a
+            className="mt-2 block text-sm text-blue-700 hover:underline"
+            href="https://docs.arche.fi/python_sdk"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open Python SDK guide
+          </a>
         </li>
       </ol>
 
-      {error ? <Text className="text-sm text-rose-700">{error}</Text> : null}
+      {error ? <ApiErrorNotice error={error} title="Onboarding action failed" /> : null}
     </PageShell>
   )
 }

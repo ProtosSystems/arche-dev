@@ -10,11 +10,12 @@ export type ArcheApiError = {
   status: number
   message: string
   details?: unknown
+  requestId?: string
 }
 
 export type ArcheApiResult<T> =
-  | { ok: true; status: number; data: T }
-  | { ok: false; status: number; message: string; details?: unknown }
+  | { ok: true; status: number; data: T; requestId?: string }
+  | { ok: false; status: number; message: string; details?: unknown; requestId?: string }
 
 function buildHeaders(request: Request, init?: RequestInit, token?: string) {
   const headers = new Headers(init?.headers)
@@ -90,6 +91,44 @@ function getMessageFromUnknownJson(json: unknown, fallback: string): string {
   return fallback
 }
 
+function getRequestIdFromJson(json: unknown): string | undefined {
+  if (typeof json !== 'object' || json === null) {
+    return undefined
+  }
+
+  const obj = json as JsonObject
+  const error = obj.error
+  if (typeof error === 'object' && error !== null) {
+    const requestId = (error as JsonObject).request_id
+    if (typeof requestId === 'string' && requestId.trim().length > 0) {
+      return requestId
+    }
+  }
+
+  const requestId = obj.request_id
+  if (typeof requestId === 'string' && requestId.trim().length > 0) {
+    return requestId
+  }
+
+  const traceId = obj.trace_id
+  if (typeof traceId === 'string' && traceId.trim().length > 0) {
+    return traceId
+  }
+
+  return undefined
+}
+
+function getRequestIdFromHeaders(headers: Headers): string | undefined {
+  const candidates = ['x-request-id', 'x-trace-id', 'trace-id']
+  for (const name of candidates) {
+    const value = headers.get(name)
+    if (value && value.trim().length > 0) {
+      return value
+    }
+  }
+  return undefined
+}
+
 export async function archeApiRequest<T>(
   request: Request,
   path: string,
@@ -100,12 +139,23 @@ export async function archeApiRequest<T>(
     return tokenResult
   }
 
+  const outboundRequestId = request.headers.get('x-request-id') ?? undefined
   const url = `${API_BASE_URL}${path}`
-  const res = await fetch(url, {
-    ...init,
-    headers: buildHeaders(request, init, tokenResult.data),
-    cache: 'no-store',
-  })
+  let res: Response
+  try {
+    res = await fetch(url, {
+      ...init,
+      headers: buildHeaders(request, init, tokenResult.data),
+      cache: 'no-store',
+    })
+  } catch {
+    return {
+      ok: false,
+      status: 502,
+      message: 'Upstream API request failed',
+      requestId: outboundRequestId,
+    }
+  }
 
   const text = await res.text()
   let json: unknown = null
@@ -118,19 +168,30 @@ export async function archeApiRequest<T>(
   }
 
   if (!res.ok) {
+    const requestId = getRequestIdFromHeaders(res.headers) ?? getRequestIdFromJson(json) ?? outboundRequestId
     return {
       ok: false,
       status: res.status,
       message: getMessageFromUnknownJson(json, res.statusText || 'Request failed'),
       details: json,
+      requestId,
     }
   }
 
-  return { ok: true, status: res.status, data: json as T }
+  return { ok: true, status: res.status, data: json as T, requestId: getRequestIdFromHeaders(res.headers) }
 }
 
 export function jsonError(error: ArcheApiError) {
-  return NextResponse.json({ error }, { status: error.status })
+  const body = {
+    error: {
+      message: error.message,
+      details: error.details,
+      request_id: error.requestId,
+    },
+  }
+
+  const headers: HeadersInit | undefined = error.requestId ? { 'x-request-id': error.requestId } : undefined
+  return NextResponse.json(body, { status: error.status, headers })
 }
 
 type OrgsResponse = {

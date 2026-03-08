@@ -26,6 +26,11 @@
 - Use `X-Request-ID` for request tracing.
 - Do not use `Authorization: Bearer` as the quickstart path.
 
+## Debugging Affordances
+- Portal error states now surface `Request ID` when available from API/BFF failures.
+- Troubleshooting link: `https://docs.arche.fi/troubleshooting/request-ids`
+- Billing/entitlements no longer silently fall back to synthetic success payloads.
+
 ## Core Route Map
 Public:
 - `/login`

@@ -45,6 +45,12 @@ External onboarding examples use:
 - `X-Api-Key`
 - `X-Request-ID`
 
+## SDK-First Integration
+
+After validating connectivity with cURL, use the Python SDK as the primary integration path:
+
+- `docs/python_sdk.md`
+
 ## Validation Commands
 
 ```bash

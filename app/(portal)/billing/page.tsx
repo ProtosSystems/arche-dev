@@ -1,9 +1,11 @@
 'use client'
 
+import { ApiErrorNotice } from '@/components/portal/ApiErrorNotice'
 import { Text } from '@/components/catalyst/text'
 import { PageShell } from '@/components/portal/PageShell'
 import { usePortal } from '@/components/portal/PortalProvider'
 import { createApiClient } from '@/lib/api/client'
+import type { NormalizedApiError } from '@/lib/api/errors'
 import { normalizeApiError } from '@/lib/api/errors'
 import type { BillingSubscription, ControlPlaneEnvironmentList, EntitlementDashboard, SuccessEnvelope } from '@/lib/api/types'
 import { useEffect, useState } from 'react'
@@ -14,7 +16,8 @@ export default function BillingPage() {
   const { selectedProject, environment } = usePortal()
   const [entitlements, setEntitlements] = useState<EntitlementDashboard | null>(null)
   const [subscription, setSubscription] = useState<BillingSubscription | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<NormalizedApiError | null>(null)
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     if (!selectedProject) {
@@ -24,6 +27,7 @@ export default function BillingPage() {
     }
 
     let active = true
+    setLoading(true)
     setError(null)
 
     const load = async () => {
@@ -36,7 +40,12 @@ export default function BillingPage() {
           if (active) {
             setEntitlements(null)
             setSubscription(null)
-            setError(`No ${environment} environment exists for this project. Create it or switch environment.`)
+            setError({
+              status: 422,
+              code: 'UNKNOWN',
+              userMessage: `No ${environment} environment exists for this project.`,
+              troubleshootingUrl: 'https://docs.arche.fi/troubleshooting/request-ids',
+            })
           }
           return
         }
@@ -54,7 +63,11 @@ export default function BillingPage() {
         setSubscription(subscriptionRes.data)
       } catch (err) {
         if (active) {
-          setError(normalizeApiError(err).userMessage)
+          setError(normalizeApiError(err))
+        }
+      } finally {
+        if (active) {
+          setLoading(false)
         }
       }
     }
@@ -77,37 +90,41 @@ export default function BillingPage() {
 
   return (
     <PageShell title="Billing" description={`Current ${environment} plan and subscription status.`}>
-      <section className="rounded-xl border border-zinc-200 bg-white p-4">
-        <div className="text-sm font-semibold">Plan</div>
-        <Text className="mt-1">
-          {entitlements ? `${entitlements.plan.name} (${entitlements.plan.status})` : 'Loading...'}
-        </Text>
-      </section>
+      {loading ? <Text className="text-sm text-zinc-600">Loading billing and entitlement data…</Text> : null}
+      {error ? <ApiErrorNotice error={error} title="Billing data unavailable" /> : null}
 
-      <section className="rounded-xl border border-zinc-200 bg-white p-4">
-        <div className="text-sm font-semibold">Subscription</div>
-        <Text className="mt-1">{subscription ? subscription.status : 'Loading...'}</Text>
-        <Text className="mt-1 text-xs text-zinc-600">
-          Current period end: {subscription?.current_period_end ? new Date(subscription.current_period_end).toLocaleString() : 'N/A'}
-        </Text>
-      </section>
+      {!error && entitlements && subscription ? (
+        <>
+          <section className="rounded-xl border border-zinc-200 bg-white p-4">
+            <div className="text-sm font-semibold">Plan</div>
+            <Text className="mt-1">{`${entitlements.plan.name} (${entitlements.plan.status})`}</Text>
+          </section>
 
-      <section className="rounded-xl border border-zinc-200 bg-white p-4">
-        <div className="text-sm font-semibold">Entitlements</div>
-        <Text className="mt-1 text-sm">
-          Requests: {entitlements?.requests.limit === null ? 'Unlimited' : `${entitlements?.requests.used ?? 0} used`}
-        </Text>
-        <Text className="mt-1 text-sm">
-          AI budget:{' '}
-          {entitlements?.ai_budget
-            ? entitlements.ai_budget.limit_usd === null
-              ? 'Unlimited'
-              : `$${entitlements.ai_budget.used_usd} used of $${entitlements.ai_budget.limit_usd}`
-            : 'N/A'}
-        </Text>
-      </section>
+          <section className="rounded-xl border border-zinc-200 bg-white p-4">
+            <div className="text-sm font-semibold">Subscription</div>
+            <Text className="mt-1">{subscription.status}</Text>
+            <Text className="mt-1 text-xs text-zinc-600">
+              Current period end:{' '}
+              {subscription.current_period_end ? new Date(subscription.current_period_end).toLocaleString() : 'N/A'}
+            </Text>
+          </section>
 
-      {error ? <Text className="text-sm text-amber-700">{error}</Text> : null}
+          <section className="rounded-xl border border-zinc-200 bg-white p-4">
+            <div className="text-sm font-semibold">Entitlements</div>
+            <Text className="mt-1 text-sm">
+              Requests: {entitlements.requests.limit === null ? 'Unlimited' : `${entitlements.requests.used} used`}
+            </Text>
+            <Text className="mt-1 text-sm">
+              AI budget:{' '}
+              {entitlements.ai_budget
+                ? entitlements.ai_budget.limit_usd === null
+                  ? 'Unlimited'
+                  : `$${entitlements.ai_budget.used_usd} used of $${entitlements.ai_budget.limit_usd}`
+                : 'N/A'}
+            </Text>
+          </section>
+        </>
+      ) : null}
     </PageShell>
   )
 }

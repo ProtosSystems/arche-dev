@@ -19,6 +19,26 @@ curl -X GET 'https://api.arche.fi/v1/views/metrics' \
 
 Expected: HTTP `200` with deterministic point-in-time metrics for the selected symbol.
 
+## Python SDK (recommended for production integrations)
+
+Install:
+
+```bash
+pip install arche-sdk
+```
+
+Then run:
+
+```python
+from arche_sdk import ArcheClient
+
+with ArcheClient(api_key="YOUR_API_KEY") as client:
+    company = client.companies.get("0000320193")
+    print(company.name)
+```
+
+Continue with [python_sdk.md](./python_sdk.md) for typed workflows across companies, filings, and statements.
+
 ## Authentication
 
 External developer onboarding uses one canonical auth mechanism:

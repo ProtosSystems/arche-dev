@@ -13,6 +13,15 @@ type RequestConfig = {
   signal?: AbortSignal
 }
 
+type ErrorEnvelope = {
+  error?: {
+    message?: string
+    request_id?: string
+  }
+  message?: string
+  request_id?: string
+}
+
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -30,6 +39,44 @@ function getRequestId() {
   const id = `portal_${crypto.randomUUID()}`
   window.sessionStorage.setItem('portal_request_id', id)
   return id
+}
+
+function toApiCode(status: number): string {
+  if (status === 401) return 'UNAUTHORIZED'
+  if (status === 403) return 'FORBIDDEN'
+  if (status === 404) return 'NOT_FOUND'
+  if (status === 429) return 'RATE_LIMITED'
+  return 'UNKNOWN'
+}
+
+function readRequestIdFromPayload(payload: unknown): string | undefined {
+  if (typeof payload !== 'object' || payload === null) {
+    return undefined
+  }
+
+  const maybe = payload as ErrorEnvelope
+  if (maybe.error?.request_id && maybe.error.request_id.trim().length > 0) {
+    return maybe.error.request_id
+  }
+  if (maybe.request_id && maybe.request_id.trim().length > 0) {
+    return maybe.request_id
+  }
+  return undefined
+}
+
+function readMessageFromPayload(payload: unknown, fallback: string): string {
+  if (typeof payload !== 'object' || payload === null) {
+    return fallback
+  }
+
+  const maybe = payload as ErrorEnvelope
+  if (typeof maybe.error?.message === 'string' && maybe.error.message.trim().length > 0) {
+    return maybe.error.message
+  }
+  if (typeof maybe.message === 'string' && maybe.message.trim().length > 0) {
+    return maybe.message
+  }
+  return fallback
 }
 
 export function createApiClient(options: ApiClientOptions = {}) {
@@ -68,15 +115,23 @@ export function createApiClient(options: ApiClientOptions = {}) {
 
         clearTimeout(timeout)
 
-        if (res.status === 401) throw new ApiError(401, 'UNAUTHORIZED', 'Unauthorized')
-        if (res.status === 403) throw new ApiError(403, 'FORBIDDEN', 'Forbidden')
-        if (res.status === 404) throw new ApiError(404, 'NOT_FOUND', 'Not found')
-        if (res.status === 429) throw new ApiError(429, 'RATE_LIMITED', 'Rate limited')
-
         if (!res.ok) {
           const text = await res.text()
-          const message = text || `HTTP ${res.status}`
-          throw new ApiError(res.status, 'UNKNOWN', message)
+          let payload: unknown = null
+          if (text) {
+            try {
+              payload = JSON.parse(text) as unknown
+            } catch {
+              payload = text
+            }
+          }
+
+          const requestIdFromHeader = res.headers.get('x-request-id') ?? undefined
+          const requestId = requestIdFromHeader ?? readRequestIdFromPayload(payload)
+          const statusCode = toApiCode(res.status)
+          const fallback = statusCode === 'UNKNOWN' ? `HTTP ${res.status}` : text || `HTTP ${res.status}`
+          const message = typeof payload === 'string' ? payload : readMessageFromPayload(payload, fallback)
+          throw new ApiError(res.status, statusCode, message, requestId)
         }
 
         if (res.status === 204) {
@@ -93,6 +148,10 @@ export function createApiClient(options: ApiClientOptions = {}) {
         if (canRetry) {
           await delay(250 * (attempt + 1))
           continue
+        }
+
+        if (error instanceof TypeError) {
+          throw new ApiError(0, 'NETWORK', error.message || 'Network error', getRequestId())
         }
 
         throw error

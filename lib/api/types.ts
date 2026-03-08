@@ -39,7 +39,7 @@ export type WebhookDelivery = {
 
 export type UsageRow = {
   ts_bucket: string
-  route: string
+  route: string | null
   status: number
   count: number
 }

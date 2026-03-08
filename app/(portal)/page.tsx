@@ -5,12 +5,12 @@ import { ConnectionCard } from '@/components/overview/ConnectionCard'
 import { EntitlementsCard } from '@/components/overview/EntitlementsCard'
 import { HealthStats, type HealthSummary, type OverviewRange } from '@/components/overview/HealthStats'
 import { UsageChart, type UsageChartPoint } from '@/components/overview/UsageChart'
+import { ApiErrorNotice } from '@/components/portal/ApiErrorNotice'
 import { PageShell } from '@/components/portal/PageShell'
 import { usePortal } from '@/components/portal/PortalProvider'
-import { formatDateTime } from '@/components/portal/utils'
 import { createApiClient } from '@/lib/api/client'
+import type { NormalizedApiError } from '@/lib/api/errors'
 import { normalizeApiError } from '@/lib/api/errors'
-import { portalApi } from '@/lib/api/portal'
 import type {
   ControlPlaneApiKeyList,
   ControlPlaneEnvironmentList,
@@ -147,7 +147,7 @@ export default function DashboardHomePage() {
   const [range, setRange] = useState<OverviewRange>('24h')
   const [snapshot, setSnapshot] = useState<OverviewSnapshot | null>(null)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<NormalizedApiError | null>(null)
   const [usageUnavailable, setUsageUnavailable] = useState(false)
 
   useEffect(() => {
@@ -206,7 +206,7 @@ export default function DashboardHomePage() {
         })
       } catch (err) {
         if (active) {
-          setError(normalizeApiError(err).userMessage)
+          setError(normalizeApiError(err))
           setUsageUnavailable(true)
         }
       } finally {
@@ -255,31 +255,35 @@ export default function DashboardHomePage() {
 
       <ConnectionCard environment={environment} />
 
-      <HealthStats range={range} onRangeChange={setRange} summary24h={health24h} summary7d={health7d} />
-
-      <EntitlementsCard entitlements={snapshot?.entitlements ?? null} />
-
-      <section className="rounded-xl border border-zinc-200 bg-white p-4">
-        <div className="text-sm font-semibold text-zinc-900">Activity</div>
-        <div className="mt-3">
-          <UsageChart points={chartPoints} unavailable={usageUnavailable} />
-        </div>
-      </section>
-
-      {!hasKeys ? (
-        <section className="rounded-xl border border-zinc-200 bg-white p-4">
-          <Text className="text-sm text-zinc-700">
-            No API keys yet.{' '}
-            <Link href="/keys" className="font-medium text-zinc-900 underline">
-              Open Keys
-            </Link>
-            .
-          </Text>
-        </section>
-      ) : null}
-
       {loading ? <Text className="text-sm text-zinc-600">Refreshing overview…</Text> : null}
-      {error ? <Text className="text-sm text-amber-700">{error}</Text> : null}
+      {error ? <ApiErrorNotice error={error} title="Overview data unavailable" /> : null}
+
+      {!error ? (
+        <>
+          <HealthStats range={range} onRangeChange={setRange} summary24h={health24h} summary7d={health7d} />
+
+          <EntitlementsCard entitlements={snapshot?.entitlements ?? null} />
+
+          <section className="rounded-xl border border-zinc-200 bg-white p-4">
+            <div className="text-sm font-semibold text-zinc-900">Activity</div>
+            <div className="mt-3">
+              <UsageChart points={chartPoints} unavailable={usageUnavailable} />
+            </div>
+          </section>
+
+          {!hasKeys ? (
+            <section className="rounded-xl border border-zinc-200 bg-white p-4">
+              <Text className="text-sm text-zinc-700">
+                No API keys yet.{' '}
+                <Link href="/keys" className="font-medium text-zinc-900 underline">
+                  Open Keys
+                </Link>
+                .
+              </Text>
+            </section>
+          ) : null}
+        </>
+      ) : null}
     </PageShell>
   )
 }

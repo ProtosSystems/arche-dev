@@ -3,6 +3,8 @@ export type NormalizedApiError = {
   code: string
   userMessage: string
   debugMessage?: string
+  requestId?: string
+  troubleshootingUrl: string
 }
 
 const USER_MESSAGES: Record<string, string> = {
@@ -18,13 +20,17 @@ const USER_MESSAGES: Record<string, string> = {
 export class ApiError extends Error {
   status: number
   code: string
+  requestId?: string
 
-  constructor(status: number, code: string, message: string) {
+  constructor(status: number, code: string, message: string, requestId?: string) {
     super(message)
     this.status = status
     this.code = code
+    this.requestId = requestId
   }
 }
+
+const TROUBLESHOOTING_URL = 'https://docs.arche.fi/troubleshooting/request-ids'
 
 export function normalizeApiError(err: unknown): NormalizedApiError {
   if (err instanceof ApiError) {
@@ -36,15 +42,29 @@ export function normalizeApiError(err: unknown): NormalizedApiError {
       code: err.code,
       userMessage,
       debugMessage: err.message,
+      requestId: err.requestId,
+      troubleshootingUrl: TROUBLESHOOTING_URL,
     }
   }
 
   if (err instanceof Error && err.name === 'AbortError') {
-    return { status: 408, code: 'TIMEOUT', userMessage: USER_MESSAGES.TIMEOUT, debugMessage: err.message }
+    return {
+      status: 408,
+      code: 'TIMEOUT',
+      userMessage: USER_MESSAGES.TIMEOUT,
+      debugMessage: err.message,
+      troubleshootingUrl: TROUBLESHOOTING_URL,
+    }
   }
 
   if (err instanceof TypeError) {
-    return { status: 0, code: 'NETWORK', userMessage: USER_MESSAGES.NETWORK, debugMessage: err.message }
+    return {
+      status: 0,
+      code: 'NETWORK',
+      userMessage: USER_MESSAGES.NETWORK,
+      debugMessage: err.message,
+      troubleshootingUrl: TROUBLESHOOTING_URL,
+    }
   }
 
   if (err instanceof Error) {
@@ -54,8 +74,9 @@ export function normalizeApiError(err: unknown): NormalizedApiError {
       code: 'UNKNOWN',
       userMessage: message ? message.slice(0, 220) : USER_MESSAGES.UNKNOWN,
       debugMessage: err.message,
+      troubleshootingUrl: TROUBLESHOOTING_URL,
     }
   }
 
-  return { status: 500, code: 'UNKNOWN', userMessage: USER_MESSAGES.UNKNOWN }
+  return { status: 500, code: 'UNKNOWN', userMessage: USER_MESSAGES.UNKNOWN, troubleshootingUrl: TROUBLESHOOTING_URL }
 }
