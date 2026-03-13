@@ -5,7 +5,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Text } from '@/components/catalyst/text'
 import { ApiErrorNotice } from '@/components/portal/ApiErrorNotice'
 import { PageShell } from '@/components/portal/PageShell'
-import { usePortal } from '@/components/portal/PortalProvider'
 import { formatDateTime } from '@/components/portal/utils'
 import type { NormalizedApiError } from '@/lib/api/errors'
 import { normalizeApiError } from '@/lib/api/errors'
@@ -14,7 +13,6 @@ import type { UsageRange, UsageRow } from '@/lib/api/types'
 import { useCallback, useEffect, useState } from 'react'
 
 export default function UsagePage() {
-  const { selectedProjectId, environment } = usePortal()
   const [rows, setRows] = useState<UsageRow[]>([])
   const [range, setRange] = useState<UsageRange>('24h')
   const [error, setError] = useState<NormalizedApiError | null>(null)
@@ -22,16 +20,10 @@ export default function UsagePage() {
 
   const load = useCallback(
     async (targetRange: UsageRange) => {
-      if (!selectedProjectId) {
-        setRows([])
-        setError(null)
-        return
-      }
-
       setError(null)
       setLoading(true)
       try {
-        const list = await portalApi.listUsage(selectedProjectId, targetRange, environment)
+        const list = await portalApi.listUsage(targetRange)
         setRows(list)
       } catch (err) {
         setRows([])
@@ -40,7 +32,7 @@ export default function UsagePage() {
         setLoading(false)
       }
     },
-    [selectedProjectId, environment]
+    []
   )
 
   useEffect(() => {
@@ -58,16 +50,10 @@ export default function UsagePage() {
         </Button>
       </section>
 
-      {!selectedProjectId ? (
-        <section className="rounded-xl border border-zinc-200 bg-white p-4 text-sm text-zinc-600">
-          Select a project from the header to view usage.
-        </section>
-      ) : null}
-
       {loading ? <Text className="text-sm text-zinc-600">Loading usage data…</Text> : null}
       {error ? <ApiErrorNotice error={error} title="Usage data unavailable" /> : null}
 
-      {!error && selectedProjectId ? (
+      {!error ? (
         <section className="rounded-xl border border-zinc-200 bg-white p-4">
           <Table>
             <TableHead>
@@ -99,6 +85,7 @@ export default function UsagePage() {
 
       <section className="rounded-xl border border-zinc-200 bg-white p-4 text-sm text-zinc-700">
         <div className="font-semibold">429 help</div>
+        <p className="mt-1 text-xs text-zinc-600">Usage is account-scoped and authorization is enforced by Arche API key policy.</p>
         <p className="mt-1">When you receive `429 Too Many Requests`, inspect response headers for rate-limit behavior:</p>
         <pre className="mt-2 overflow-x-auto rounded bg-zinc-950 p-3 text-xs text-zinc-100">{`x-ratelimit-limit: 1000\nx-ratelimit-remaining: 0\nx-ratelimit-reset: 1739999999\nretry-after: 30`}</pre>
       </section>

@@ -1,18 +1,17 @@
-# Developer Portal MVP Plan (Phase 1 Complete)
+# Developer Portal MVP Plan (Self-Serve API Keys)
 
 ## Outcomes
-- Core navigation reduced to high-value surfaces only.
-- Placeholder and non-functional portal flows removed from the core user journey.
-- Real onboarding path implemented:
+- Core navigation stays limited to high-value surfaces.
+- Self-serve onboarding now follows the real pre-launch contract:
   - sign in
-  - select project context
-  - create API key
-  - copy/paste real request
-  - call real API endpoint
-- Auth guidance unified around `X-Api-Key` for external onboarding.
-- Request-aware error UX added with request ID surfacing and troubleshooting links.
+  - entitlement check from Arche canonical state
+  - purchase via Paddle when required
+  - create API key directly in portal
+  - copy key once
+  - call API using `X-Api-Key`
+- Project creation is not user-facing and not required for key creation.
+- Request-aware error UX remains in place with request ID surfacing.
 - Synthetic billing/entitlements fallback behavior removed in BFF routes.
-- Python SDK promoted as primary post-cURL integration path.
 
 ## Canonical Route Map
 Public:
@@ -30,8 +29,12 @@ Authenticated core:
 - `scripts/portal-smoke.mjs`
   - validates core nav items
   - rejects removed nav items
-  - rejects placeholder copy in core pages
+  - rejects project-dependent onboarding copy
   - validates onboarding canonical endpoint + auth header
+- `scripts/validate-self-serve-flow.mjs`
+  - validates canonical self-serve access endpoint wiring
+  - validates key-create body contract without project/env fields
+  - validates purchase-required gating copy and one-time secret UX
 - `scripts/validate-docs-contract.mjs`
   - validates quickstart/golden-path documented endpoints against OpenAPI
   - rejects non-canonical auth examples

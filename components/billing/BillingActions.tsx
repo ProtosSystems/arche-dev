@@ -12,6 +12,23 @@ export function BillingActions({ status, showUpgrade }: BillingActionsProps) {
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
+  const toUserMessage = (raw: unknown) => {
+    const message = typeof raw === 'string' ? raw : 'Billing action is currently unavailable.'
+    if (message.includes('paddle_not_configured_for_account')) {
+      return 'Paddle is not configured for this account yet. Billing checkout/portal is temporarily unavailable.'
+    }
+    if (message.includes('paddle_not_configured_for_env')) {
+      return 'Paddle is not configured for this environment yet.'
+    }
+    if (message.includes('billing_customer_missing')) {
+      return 'No billing customer is linked to this account yet. Start checkout first before opening the billing portal.'
+    }
+    if (message.includes('portal_not_supported')) {
+      return 'The billing provider does not support portal sessions for this account.'
+    }
+    return message
+  }
+
   const runCheckout = () => {
     setError(null)
     startTransition(async () => {
@@ -23,7 +40,7 @@ export function BillingActions({ status, showUpgrade }: BillingActionsProps) {
       const payload = await res.json().catch(() => ({}))
       const url = payload?.data?.checkout_url
       if (!res.ok || !url) {
-        setError(payload?.error?.message || 'Unable to create checkout session.')
+        setError(toUserMessage(payload?.error?.message || 'Unable to create checkout session.'))
         return
       }
       window.location.href = url
@@ -37,7 +54,7 @@ export function BillingActions({ status, showUpgrade }: BillingActionsProps) {
       const payload = await res.json().catch(() => ({}))
       const url = payload?.data?.portal_url
       if (!res.ok || !url) {
-        setError(payload?.error?.message || 'Billing portal is not available.')
+        setError(toUserMessage(payload?.error?.message || 'Billing portal is not available.'))
         return
       }
       window.location.href = url
@@ -53,7 +70,7 @@ export function BillingActions({ status, showUpgrade }: BillingActionsProps) {
       <div className="flex gap-2">
         {showUpgradeButton && (
           <Button color="dark/zinc" onClick={runCheckout} disabled={pending}>
-            Upgrade
+            Purchase access
           </Button>
         )}
         {showManageButton && (

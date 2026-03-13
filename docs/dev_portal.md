@@ -11,15 +11,13 @@
 - `AUTH_DISABLED_FOR_DEV`: `true` enables local auth bypass. Default `false`.
 - `NEXT_PUBLIC_AUTH_DISABLED_FOR_DEV`: set to `true` only when bypassing auth locally.
 - `NEXT_PUBLIC_PORTAL_MOCK`: `true` enables deterministic mock mode.
-- `API_BASE_URL`: backend base URL for existing BFF routes.
+- `API_BASE_URL`: backend base URL for BFF routes.
 
-## Environment Model
-- Global environment context: `sandbox` or `production`.
-- Environment is selected in top nav and persisted in localStorage.
-- Environment controls:
-  - displayed API base URL (`https://sandbox.api.arche.fi` vs `https://api.arche.fi`)
-  - API keys shown/managed
-  - usage rows shown
+## Canonical Access Model
+- Paddle handles checkout and subscription portal actions.
+- Arche API stores canonical customer/org entitlements and API-key lifecycle state.
+- Portal authorization decisions come from Arche API control-plane responses (`/v1/account/entitlements` via `/api/self-serve/access`).
+- Data-plane auth remains API key based (`X-Api-Key`) and does not depend on live Paddle checks.
 
 ## Canonical Auth Path (External Developers)
 - Use `X-Api-Key` for API calls.
@@ -27,7 +25,7 @@
 - Do not use `Authorization: Bearer` as the quickstart path.
 
 ## Debugging Affordances
-- Portal error states now surface `Request ID` when available from API/BFF failures.
+- Portal error states surface `Request ID` when available from API/BFF failures.
 - Troubleshooting link: `https://docs.arche.fi/troubleshooting/request-ids`
 - Billing/entitlements no longer silently fall back to synthetic success payloads.
 
@@ -43,17 +41,17 @@ Authenticated core:
 - `/billing`
 - `/account`
 
-Internal legacy/detail routes (not in core nav):
-- `/projects`
-- `/projects/[projectId]`
-- `/projects/[projectId]/api-keys`
-- `/projects/[projectId]/usage`
+Internal:
+- `/internal/dev-metrics` (admin only)
+- `/internal/webhooks/paddle` (Paddle ingress)
 
 ## Verification
 - `npm run lint`
 - `npm run build`
 - `npm run smoke:portal`
 - `npm run check:docs-contract`
+- `npm run check:self-serve-flow`
+- `npm run test:dev-flow`
 
 ## Deployment Notes
 - Keep `AUTH_DISABLED_FOR_DEV=false` in deployed environments.

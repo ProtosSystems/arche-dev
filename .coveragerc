@@ -1,0 +1,13 @@
+[run]
+omit =
+  */sdk/*
+  */sdks/*
+  */node_modules/*
+  */.next/*
+
+[report]
+omit =
+  */sdk/*
+  */sdks/*
+  */node_modules/*
+  */.next/*

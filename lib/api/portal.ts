@@ -5,62 +5,28 @@ import { mockPortalApi } from '@/lib/mock/portal'
 import type {
   APIKey,
   APIKeyCreateResult,
+  AccountApiKey,
+  AccountApiKeyCreateResult,
   BillingOverview,
-  ControlPlaneApiKey,
   ControlPlaneApiKeyList,
-  ControlPlaneEnvironment,
-  ControlPlaneEnvironmentList,
-  Environment,
   PortalApi,
-  Project,
-  ProjectSummary,
+  SelfServeAccessState,
   SuccessEnvelope,
-  UsageRange,
   UsageRow,
   UsageTimeseries,
-  WebhookDelivery,
-  WebhookEndpoint,
 } from '@/lib/api/types'
 
 const apiClient = createApiClient({ baseUrl: '', retries: 2 })
 
-type ControlPlaneProject = {
-  id: string
-  org_id: string
-  name: string
-  created_at: string
-}
-
-type ControlPlaneProjectList = {
-  items: ControlPlaneProject[]
-}
-
-function mapProject(project: ControlPlaneProject): Project {
-  return {
-    id: project.id,
-    name: project.name,
-    created_at: project.created_at,
-  }
-}
-
-function mapApiKey(item: ControlPlaneApiKey): APIKey {
+function mapApiKey(item: AccountApiKey): APIKey {
   return {
     id: item.id,
-    name: item.name ?? item.key_prefix,
-    prefix: item.key_prefix,
+    name: item.name ?? item.masked_key,
+    masked_key: item.masked_key,
     created_at: item.created_at,
     last_used_at: item.last_used_at,
     revoked_at: item.revoked_at,
   }
-}
-
-async function resolveEnvironment(projectId: string, environment: Environment): Promise<ControlPlaneEnvironment> {
-  const envs = await apiClient.get<SuccessEnvelope<ControlPlaneEnvironmentList>>(`/api/projects/${projectId}/environments`)
-  const selected = envs.data.items.find((item) => item.kind === environment)
-  if (!selected) {
-    throw new Error(`No ${environment} environment found for selected project`)
-  }
-  return selected
 }
 
 function mapTimeseriesToRows(payload: UsageTimeseries): UsageRow[] {
@@ -101,107 +67,38 @@ function mapTimeseriesToRows(payload: UsageTimeseries): UsageRow[] {
 }
 
 const realPortalApi: PortalApi = {
-  async listProjects() {
-    const res = await apiClient.get<SuccessEnvelope<ControlPlaneProjectList>>('/api/orgs/projects')
-    return res.data.items.map(mapProject)
+  async getSelfServeAccessState() {
+    const res = await apiClient.get<SuccessEnvelope<SelfServeAccessState>>('/api/self-serve/access')
+    return res.data
   },
 
-  async createProject() {
-    throw new Error('Project creation is not available in this portal build.')
-  },
-
-  async getProjectSummary(projectId, environment) {
-    const env = await resolveEnvironment(projectId, environment)
-    const envId = env.id
-    const headers = { 'x-env-id': envId }
-
-    const [usage24h, usage7d, keyList] = await Promise.all([
-      apiClient.get<SuccessEnvelope<{ total_requests: number }>>(
-        `/api/usage/summary?window=24h&environment_id=${envId}`,
-        headers
-      ),
-      apiClient.get<SuccessEnvelope<{ total_requests: number }>>(
-        `/api/usage/summary?window=7d&environment_id=${envId}`,
-        headers
-      ),
-      apiClient.get<SuccessEnvelope<ControlPlaneApiKeyList>>(`/api/keys?env_id=${envId}`, headers),
-    ])
-
-    const project = (await this.listProjects()).find((item) => item.id === projectId)
-    if (!project) {
-      throw new Error('Project not found')
-    }
-
-    const summary: ProjectSummary = {
-      project,
-      key_count: keyList.data.items.filter((key) => key.revoked_at === null && key.status.toLowerCase() !== 'revoked').length,
-      webhook_count: 0,
-      usage_24h: usage24h.data.total_requests ?? 0,
-      usage_7d: usage7d.data.total_requests ?? 0,
-    }
-
-    return summary
-  },
-
-  async listApiKeys(projectId, environment) {
-    const env = await resolveEnvironment(projectId, environment)
-    const res = await apiClient.get<SuccessEnvelope<ControlPlaneApiKeyList>>(`/api/keys?env_id=${env.id}`, {
-      'x-env-id': env.id,
-    })
+  async listApiKeys() {
+    const res = await apiClient.get<SuccessEnvelope<ControlPlaneApiKeyList>>('/api/keys')
     return res.data.items.map(mapApiKey)
   },
 
-  async createApiKey(projectId, input) {
-    const env = await resolveEnvironment(projectId, input.environment)
-    const res = await apiClient.post<
-      SuccessEnvelope<{
-        api_key: ControlPlaneApiKey
-        raw_key: string
-      }>
-    >(
+  async createApiKey(input) {
+    const res = await apiClient.post<SuccessEnvelope<AccountApiKeyCreateResult>>(
       '/api/keys',
       {
-        env_id: env.id,
         name: input.name,
-      },
-      { 'x-env-id': env.id }
+      }
     )
 
     const result: APIKeyCreateResult = {
-      key: mapApiKey(res.data.api_key),
-      secret: res.data.raw_key,
+      key: mapApiKey(res.data),
+      secret: res.data.secret,
     }
     return result
   },
 
-  async revokeApiKey(projectId, keyId, environment) {
-    const env = await resolveEnvironment(projectId, environment)
-    await apiClient.post(`/api/keys/${keyId}/revoke`, undefined, { 'x-env-id': env.id })
+  async revokeApiKey(keyId) {
+    await apiClient.post(`/api/keys/${keyId}/revoke`)
   },
 
-  async listUsage(projectId, range, environment) {
-    const env = await resolveEnvironment(projectId, environment)
-    const res = await apiClient.get<SuccessEnvelope<UsageTimeseries>>(
-      `/api/usage/timeseries?window=${range}&environment_id=${env.id}`,
-      { 'x-env-id': env.id }
-    )
+  async listUsage(range) {
+    const res = await apiClient.get<SuccessEnvelope<UsageTimeseries>>(`/api/usage/timeseries?window=${range}`)
     return mapTimeseriesToRows(res.data)
-  },
-
-  async listWebhooks() {
-    return []
-  },
-
-  async upsertWebhook() {
-    throw new Error('Webhook management is not available in this portal build.')
-  },
-
-  async regenerateWebhookSecret() {
-    throw new Error('Webhook secret rotation is not available in this portal build.')
-  },
-
-  async listWebhookDeliveries() {
-    return []
   },
 
   async getBillingOverview() {

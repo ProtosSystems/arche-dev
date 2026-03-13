@@ -1,41 +1,41 @@
 'use client'
 
+import { BillingActions } from '@/components/billing/BillingActions'
 import { Button } from '@/components/catalyst/button'
 import { Input } from '@/components/catalyst/input'
 import { Text } from '@/components/catalyst/text'
 import { ApiErrorNotice } from '@/components/portal/ApiErrorNotice'
-import { getEnvBaseUrl } from '@/components/portal/env'
 import { PageShell } from '@/components/portal/PageShell'
 import { usePortal } from '@/components/portal/PortalProvider'
+import { formatBillingStatusLabel } from '@/components/portal/utils'
 import type { NormalizedApiError } from '@/lib/api/errors'
 import { normalizeApiError } from '@/lib/api/errors'
 import { portalApi } from '@/lib/api/portal'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 export default function OnboardingPage() {
-  const { selectedProject, environment } = usePortal()
+  const { accessState, refreshAccess } = usePortal()
   const [keyName, setKeyName] = useState('Quickstart Key')
   const [createdSecret, setCreatedSecret] = useState<string | null>(null)
   const [error, setError] = useState<NormalizedApiError | null>(null)
   const [loading, setLoading] = useState(false)
 
+  const canCreate = accessState?.can_create_api_keys ?? false
+
+  useEffect(() => {
+    void fetch('/api/internal/dev-metrics/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: 'docs_quickstart_viewed' }),
+    }).catch(() => undefined)
+  }, [])
+
   const curlSnippet = useMemo(() => {
     const key = createdSecret ?? '<YOUR_API_KEY>'
-    const baseUrl = getEnvBaseUrl(environment)
-    return `curl -X GET ${baseUrl}/v1/views/metrics \\\n  -H "X-Api-Key: ${key}" \\\n  -H "X-Request-ID: quickstart_001" \\\n  -H "Accept: application/json"`
-  }, [createdSecret, environment])
+    return `curl https://api.arche.fi/v1/edgar/companies/AAPL \\\n  -H "X-Api-Key: ${key}"`
+  }, [createdSecret])
 
   const handleCreateKey = async () => {
-    if (!selectedProject) {
-      setError({
-        status: 422,
-        code: 'UNKNOWN',
-        userMessage: 'No project context found. Select a project from the header first.',
-        troubleshootingUrl: 'https://docs.arche.fi/troubleshooting/request-ids',
-      })
-      return
-    }
-
     if (!keyName.trim()) {
       setError({
         status: 422,
@@ -49,8 +49,9 @@ export default function OnboardingPage() {
     setLoading(true)
     setError(null)
     try {
-      const created = await portalApi.createApiKey(selectedProject.id, { name: keyName.trim(), environment })
+      const created = await portalApi.createApiKey({ name: keyName.trim() })
       setCreatedSecret(created.secret)
+      await refreshAccess()
     } catch (err) {
       setError(normalizeApiError(err))
     } finally {
@@ -59,26 +60,37 @@ export default function OnboardingPage() {
   }
 
   return (
-    <PageShell title="Onboarding" description="Sign in, create a key, and make your first successful API call.">
+    <PageShell title="Onboarding" description="Sign in, verify entitlement, create a key, and make your first successful API call.">
       <ol className="space-y-4">
         <li className="rounded-xl border border-zinc-200 bg-white p-4">
-          <div className="text-sm font-semibold">1. Confirm project context (required for key creation)</div>
+          <div className="text-sm font-semibold">1. Check account access</div>
           <Text className="mt-2 text-sm text-zinc-700">
-            Selected project: <span className="font-medium text-zinc-900">{selectedProject?.name ?? 'None selected'}</span>
+            Arche API canonical entitlement status:{' '}
+            <span className="font-medium text-zinc-900">
+              {formatBillingStatusLabel(accessState?.entitlement.status)}
+            </span>
           </Text>
-          <Text className="mt-1 text-xs text-zinc-600">
-            Use the header selector to switch to an existing project. API keys are environment-scoped under a project.
-          </Text>
+          {!canCreate ? (
+            <div className="mt-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <div className="font-semibold">2. Inactive entitlement: complete Paddle purchase</div>
+              <div className="mt-1">{accessState?.reason ?? 'Your entitlement is not active yet.'}</div>
+              <div className="mt-3">
+                <BillingActions status={accessState?.entitlement.status ?? null} showUpgrade />
+              </div>
+            </div>
+          ) : (
+            <Text className="mt-2 text-xs text-emerald-700">Entitlement is active. You can create an API key now.</Text>
+          )}
         </li>
 
         <li className="rounded-xl border border-zinc-200 bg-white p-4">
-          <div className="text-sm font-semibold">2. Create API key ({environment})</div>
+          <div className="text-sm font-semibold">3. Active entitlement: create API key</div>
           <div className="mt-2 flex flex-wrap items-end gap-2">
             <div>
               <Text className="text-xs uppercase tracking-wide text-zinc-500">Key name</Text>
               <Input value={keyName} onChange={(event) => setKeyName(event.target.value)} placeholder="Quickstart Key" />
             </div>
-            <Button color="dark/zinc" disabled={loading || !selectedProject} onClick={handleCreateKey}>
+            <Button color="dark/zinc" disabled={loading || !canCreate} onClick={handleCreateKey}>
               Create API key
             </Button>
           </div>
@@ -91,31 +103,18 @@ export default function OnboardingPage() {
         </li>
 
         <li className="rounded-xl border border-zinc-200 bg-white p-4">
-          <div className="text-sm font-semibold">3. Run first API call</div>
-          <Text className="mt-2 text-xs text-zinc-600">
-            This request uses the canonical external auth path: <code>X-Api-Key</code>.
-          </Text>
+          <div className="text-sm font-semibold">4. Copy example request and run it</div>
           <pre className="mt-2 overflow-x-auto rounded bg-zinc-950 p-3 text-xs text-zinc-100">{curlSnippet}</pre>
-        </li>
-
-        <li className="rounded-xl border border-zinc-200 bg-white p-4">
-          <div className="text-sm font-semibold">4. Continue in docs</div>
-          <a
-            className="mt-2 inline-block text-sm text-blue-700 hover:underline"
-            href="https://docs.arche.fi/quickstart"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Open docs quickstart
-          </a>
-          <a
-            className="mt-2 block text-sm text-blue-700 hover:underline"
-            href="https://docs.arche.fi/python_sdk"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Open Python SDK guide
-          </a>
+          <div className="mt-3">
+            <a
+              className="text-sm font-medium text-zinc-900 underline dark:text-[var(--protos-mist-300)]"
+              href="https://docs.arche.fi/sdks/python"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Use the Python SDK
+            </a>
+          </div>
         </li>
       </ol>
 

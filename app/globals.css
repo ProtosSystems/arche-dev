@@ -7,15 +7,51 @@
 }
 
 :root {
-  --protos-navy: #0b1f3b;
+  --protos-navy: #0f172a;
+  --protos-navy-deep: #0b1020;
+  --protos-panel: #102746;
+  --protos-panel-muted: #173255;
   --protos-accent: #3a4f7a;
+  --protos-accent-light: #173255;
+  --protos-mist-300: #c9d7e6;
   --protos-surface: #ffffff;
   --protos-surface-muted: #f8fafc;
   --protos-text: #0f172a;
+  color-scheme: light;
 }
 
 .dark {
-  --protos-surface: #0f172a;
-  --protos-surface-muted: #0b1220;
+  --protos-surface: var(--protos-navy);
+  --protos-surface-muted: var(--protos-navy-deep);
   --protos-text: #f8fafc;
+  color-scheme: dark;
+}
+
+.dark .portal-shell .bg-white {
+  background-color: var(--protos-navy) !important;
+}
+
+.dark .portal-shell .border-zinc-200 {
+  border-color: rgb(201 215 230 / 0.16) !important;
+}
+
+.dark .portal-shell .text-zinc-900 {
+  color: #f8fafc !important;
+}
+
+.dark .portal-shell .text-zinc-700 {
+  color: #d9e3ee !important;
+}
+
+.dark .portal-shell .text-zinc-600,
+.dark .portal-shell .text-zinc-500 {
+  color: #b9c8da !important;
+}
+
+.dark .portal-shell .bg-zinc-950\/5 {
+  background-color: rgb(201 215 230 / 0.08) !important;
+}
+
+.dark nav[class*='bg-\\[var\\(--protos-accent\\)\\]'] {
+  color: white;
 }

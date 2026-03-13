@@ -6,8 +6,9 @@ Arche docs are rooted at `https://docs.arche.fi`.
 
 1. Sign in to `https://app.arche.fi`
 2. Open `Onboarding`
-3. Create an API key
-4. Copy and run this request
+3. If access is gated, complete purchase via Paddle from the portal billing action
+4. Create an API key directly in the portal
+5. Copy and run this request
 
 <!-- contract: GET /v1/views/metrics -->
 ```bash

@@ -148,11 +148,13 @@ export async function archeApiRequest<T>(
       headers: buildHeaders(request, init, tokenResult.data),
       cache: 'no-store',
     })
-  } catch {
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown network failure'
     return {
       ok: false,
       status: 502,
-      message: 'Upstream API request failed',
+      message: `Upstream API request failed (${API_BASE_URL}). ${errorMessage}`,
+      details: { upstream_url: url },
       requestId: outboundRequestId,
     }
   }

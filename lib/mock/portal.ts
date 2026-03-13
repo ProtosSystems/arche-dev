@@ -1,54 +1,49 @@
 'use client'
 
-import {
-  fixtureApiKeysByProject,
-  fixtureBillingOverview,
-  fixtureProjects,
-  fixtureUsageByProject,
-  fixtureWebhookDeliveriesByProject,
-  fixtureWebhooksByProject,
-} from '@/lib/mock/fixtures'
+import { fixtureApiKeys, fixtureBillingOverview, fixtureUsageRows } from '@/lib/mock/fixtures'
 import type {
   APIKey,
   APIKeyCreateResult,
   BillingOverview,
-  Environment,
   PortalApi,
-  Project,
-  ProjectSummary,
+  SelfServeAccessState,
   UsageRange,
   UsageRow,
-  WebhookDelivery,
-  WebhookEndpoint,
 } from '@/lib/api/types'
 
-type EnvState<T> = Record<Environment, T>
-
 type MockState = {
-  projects: Project[]
-  apiKeysByProject: Record<string, EnvState<APIKey[]>>
-  webhooksByProject: Record<string, EnvState<WebhookEndpoint[]>>
-  usageByProject: Record<string, EnvState<UsageRow[]>>
-  deliveriesByProject: Record<string, EnvState<WebhookDelivery[]>>
+  apiKeys: APIKey[]
+  usageRows: UsageRow[]
+  entitlement: SelfServeAccessState
 }
 
-const STORAGE_KEY = 'portal_mock_state_v2'
+const STORAGE_KEY = 'portal_mock_state_v3'
 
 function clone<T>(input: T): T {
   return JSON.parse(JSON.stringify(input)) as T
 }
 
-function emptyEnvState<T>(value: T): EnvState<T> {
-  return { sandbox: clone(value), production: clone(value) }
-}
-
 function readState(): MockState {
   const seed: MockState = {
-    projects: clone(fixtureProjects),
-    apiKeysByProject: clone(fixtureApiKeysByProject),
-    webhooksByProject: clone(fixtureWebhooksByProject),
-    usageByProject: clone(fixtureUsageByProject),
-    deliveriesByProject: clone(fixtureWebhookDeliveriesByProject),
+    apiKeys: clone(fixtureApiKeys),
+    usageRows: clone(fixtureUsageRows),
+    entitlement: {
+      entitlement: {
+        source_of_truth: 'arche_api',
+        plan: 'Developer',
+        status: 'active',
+        api_key_limit: 5,
+        usage_limits: {
+          requests_per_day: 50000,
+          ai_budget_usd: null,
+        },
+        active_api_key_count: fixtureApiKeys.filter((item) => item.revoked_at === null).length,
+        updated_at: new Date().toISOString(),
+      },
+      can_create_api_keys: true,
+      purchase_required: false,
+      reason: null,
+    },
   }
 
   if (typeof window === 'undefined') {
@@ -89,12 +84,8 @@ function randomToken(size = 6) {
   return Math.random().toString(36).slice(2, 2 + size).toUpperCase()
 }
 
-function keyPrefix(environment: Environment) {
-  return environment === 'production' ? `ak_live_${randomToken(4)}` : `ak_sbx_${randomToken(4)}`
-}
-
-function webhookPrefix(environment: Environment) {
-  return environment === 'production' ? `whsec_live_${randomToken(4)}` : `whsec_sbx_${randomToken(4)}`
+function keyPrefix() {
+  return `ak_live_${randomToken(4)}`
 }
 
 function secret(prefix: string) {
@@ -108,175 +99,75 @@ function filterByRange(rows: UsageRow[], range: UsageRange) {
   return rows.filter((row) => new Date(row.ts_bucket).getTime() >= minTs)
 }
 
-function getEnvRows<T>(source: EnvState<T>, environment: Environment): T {
-  return source[environment]
+function syncEntitlementCounts(state: MockState): MockState {
+  state.entitlement.entitlement.active_api_key_count = state.apiKeys.filter((key) => key.revoked_at === null).length
+  state.entitlement.entitlement.updated_at = nowIso()
+  const limit = state.entitlement.entitlement.api_key_limit
+  state.entitlement.can_create_api_keys =
+    state.entitlement.entitlement.status === 'active' &&
+    (limit === null || state.entitlement.entitlement.active_api_key_count < limit)
+  return state
 }
 
 export const mockPortalApi: PortalApi = {
-  async listProjects() {
-    return readState().projects
-  },
-
-  async createProject(input) {
-    const state = readState()
-    const project: Project = {
-      id: randomId(),
-      name: input.name.trim(),
-      created_at: nowIso(),
-    }
-
-    state.projects.unshift(project)
-    state.apiKeysByProject[project.id] = emptyEnvState([] as APIKey[])
-    state.webhooksByProject[project.id] = emptyEnvState([] as WebhookEndpoint[])
-    state.usageByProject[project.id] = emptyEnvState([] as UsageRow[])
-    state.deliveriesByProject[project.id] = emptyEnvState([] as WebhookDelivery[])
+  async getSelfServeAccessState() {
+    const state = syncEntitlementCounts(readState())
     writeState(state)
-    return project
+    return state.entitlement
   },
 
-  async getProjectSummary(projectId, environment) {
+  async listApiKeys() {
     const state = readState()
-    const project = state.projects.find((item) => item.id === projectId)
-    if (!project) {
-      throw new Error('Project not found')
+    return state.apiKeys
+  },
+
+  async createApiKey(input): Promise<APIKeyCreateResult> {
+    const state = syncEntitlementCounts(readState())
+    if (!state.entitlement.can_create_api_keys) {
+      throw new Error('Entitlement is not active for API key creation.')
     }
 
-    const usage = getEnvRows(state.usageByProject[projectId] ?? emptyEnvState([] as UsageRow[]), environment)
-    const usage24h = filterByRange(usage, '24h').reduce((sum, row) => sum + row.count, 0)
-    const usage7d = filterByRange(usage, '7d').reduce((sum, row) => sum + row.count, 0)
-
-    const keys = getEnvRows(state.apiKeysByProject[projectId] ?? emptyEnvState([] as APIKey[]), environment)
-    const webhooks = getEnvRows(
-      state.webhooksByProject[projectId] ?? emptyEnvState([] as WebhookEndpoint[]),
-      environment
-    )
-
-    const summary: ProjectSummary = {
-      project,
-      key_count: keys.filter((key) => key.revoked_at === null).length,
-      webhook_count: webhooks.length,
-      usage_24h: usage24h,
-      usage_7d: usage7d,
+    const limit = state.entitlement.entitlement.api_key_limit
+    const active = state.entitlement.entitlement.active_api_key_count
+    if (typeof limit === 'number' && active >= limit) {
+      throw new Error('API key limit reached for current plan.')
     }
 
-    return summary
-  },
-
-  async listApiKeys(projectId, environment) {
-    const state = readState()
-    return getEnvRows(state.apiKeysByProject[projectId] ?? emptyEnvState([] as APIKey[]), environment)
-  },
-
-  async createApiKey(projectId, input): Promise<APIKeyCreateResult> {
-    const state = readState()
     const key: APIKey = {
       id: randomId(),
       name: input.name.trim(),
-      prefix: keyPrefix(input.environment),
+      masked_key: `${keyPrefix()}********`,
       created_at: nowIso(),
       last_used_at: null,
       revoked_at: null,
     }
 
-    const envState = state.apiKeysByProject[projectId] ?? emptyEnvState([] as APIKey[])
-    envState[input.environment].unshift(key)
-    state.apiKeysByProject[projectId] = envState
-    writeState(state)
+    state.apiKeys.unshift(key)
+    writeState(syncEntitlementCounts(state))
 
     return {
       key,
-      secret: secret(key.prefix.slice(0, key.prefix.lastIndexOf('_') + 1)),
+      secret: secret('ak_live_'),
     }
   },
 
-  async revokeApiKey(projectId, keyId, environment) {
+  async revokeApiKey(keyId) {
     const state = readState()
-    const envState = state.apiKeysByProject[projectId] ?? emptyEnvState([] as APIKey[])
-    envState[environment] = envState[environment].map((item) => {
+    state.apiKeys = state.apiKeys.map((item) => {
       if (item.id !== keyId) {
         return item
       }
       return { ...item, revoked_at: nowIso() }
     })
-    state.apiKeysByProject[projectId] = envState
-    writeState(state)
+    writeState(syncEntitlementCounts(state))
   },
 
-  async listUsage(projectId, range, environment) {
-    const rows = getEnvRows(stateOrEmptyUsage(readState(), projectId), environment)
+  async listUsage(range) {
+    const rows = readState().usageRows
     return filterByRange(rows, range)
-  },
-
-  async listWebhooks(projectId, environment) {
-    const state = readState()
-    return getEnvRows(
-      state.webhooksByProject[projectId] ?? emptyEnvState([] as WebhookEndpoint[]),
-      environment
-    )
-  },
-
-  async upsertWebhook(projectId, input) {
-    const state = readState()
-    const envState = state.webhooksByProject[projectId] ?? emptyEnvState([] as WebhookEndpoint[])
-    const current = envState[input.environment][0]
-
-    const next: WebhookEndpoint = current
-      ? { ...current, url: input.url, enabled: input.enabled }
-      : {
-          id: randomId(),
-          url: input.url,
-          enabled: input.enabled,
-          created_at: nowIso(),
-          secret_prefix: webhookPrefix(input.environment),
-        }
-
-    envState[input.environment] = [next]
-    state.webhooksByProject[projectId] = envState
-    writeState(state)
-    return next
-  },
-
-  async regenerateWebhookSecret(projectId, webhookId, environment) {
-    const state = readState()
-    const envState = state.webhooksByProject[projectId] ?? emptyEnvState([] as WebhookEndpoint[])
-    const nextPrefix = webhookPrefix(environment)
-
-    envState[environment] = envState[environment].map((hook) =>
-      hook.id === webhookId ? { ...hook, secret_prefix: nextPrefix } : hook
-    )
-
-    state.webhooksByProject[projectId] = envState
-    writeState(state)
-
-    return {
-      secret: secret(nextPrefix),
-      secret_prefix: nextPrefix,
-    }
-  },
-
-  async listWebhookDeliveries(projectId, environment, statusFilter = 'all') {
-    const state = readState()
-    const rows = getEnvRows(
-      state.deliveriesByProject[projectId] ?? emptyEnvState([] as WebhookDelivery[]),
-      environment
-    )
-
-    if (statusFilter === 'all') {
-      return rows
-    }
-
-    if (statusFilter === 'success') {
-      return rows.filter((row) => row.status >= 200 && row.status < 300)
-    }
-
-    return rows.filter((row) => row.status >= 400)
   },
 
   async getBillingOverview(): Promise<BillingOverview> {
     return fixtureBillingOverview
   },
-}
-
-function stateOrEmptyUsage(state: MockState, projectId: string): EnvState<UsageRow[]> {
-  return state.usageByProject[projectId] ?? emptyEnvState([] as UsageRow[])
 }

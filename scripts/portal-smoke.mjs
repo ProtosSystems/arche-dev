@@ -16,6 +16,7 @@ const required = [
   'lib/api/types.ts',
   'lib/api/errors.ts',
   'lib/mock/portal.ts',
+  'app/api/self-serve/access/route.ts',
 ]
 
 const missing = required.filter((file) => !fs.existsSync(file))
@@ -45,7 +46,7 @@ for (const label of forbiddenNavLabels) {
 }
 
 const onboarding = fs.readFileSync('app/(portal)/onboarding/page.tsx', 'utf8')
-if (!onboarding.includes('/v1/views/metrics')) {
+if (!onboarding.includes('/v1/edgar/companies/AAPL')) {
   console.error('Onboarding does not include canonical first-success endpoint.')
   process.exit(1)
 }
@@ -57,21 +58,71 @@ if (onboarding.includes('Authorization: Bearer')) {
   console.error('Onboarding still contains Authorization: Bearer guidance.')
   process.exit(1)
 }
-if (!onboarding.includes('https://docs.arche.fi/python_sdk')) {
-  console.error('Onboarding does not link to Python SDK docs.')
+if (onboarding.toLowerCase().includes('project context')) {
+  console.error('Onboarding still contains project-context onboarding copy.')
   process.exit(1)
 }
 
 const overview = fs.readFileSync('app/(portal)/page.tsx', 'utf8')
-const overviewSignals = ['Setup status', 'Integration health', 'Limits & plan', 'Trust signals', 'Last observed request']
+const firstRequestCard = fs.readFileSync('components/overview/ConnectionCard.tsx', 'utf8')
+const overviewSignals = ['Access status', 'API Keys', 'Usage']
 for (const marker of overviewSignals) {
   if (!overview.includes(marker)) {
     console.error(`Overview is missing expected high-signal marker: ${marker}`)
     process.exit(1)
   }
 }
+if (!firstRequestCard.includes('Make your first request')) {
+  console.error('Overview first-request block is missing required heading.')
+  process.exit(1)
+}
+const bannedOverviewMarkers = [
+  'Account-level API access',
+  'Setup status',
+  'Integration health',
+  'Trust signals',
+  'Source of truth',
+  'canonical state',
+]
+for (const marker of bannedOverviewMarkers) {
+  if (overview.includes(marker)) {
+    console.error(`Overview contains deprecated noise marker: ${marker}`)
+    process.exit(1)
+  }
+}
 if (overview.includes('UsageChart') || overview.includes('HealthStats') || overview.includes('EntitlementsCard')) {
   console.error('Overview still includes removed low-value dashboard widgets.')
+  process.exit(1)
+}
+
+const accountPage = fs.readFileSync('app/(portal)/account/page.tsx', 'utf8')
+const requiredAccountMarkers = ['Who owns this API access.', 'Email', 'Organization / account name', 'Authentication', 'Manage profile']
+for (const marker of requiredAccountMarkers) {
+  if (!accountPage.includes(marker)) {
+    console.error(`Account page is missing expected identity marker: ${marker}`)
+    process.exit(1)
+  }
+}
+const forbiddenAccountMarkers = [
+  'session management',
+  'canonical state',
+  'source of truth',
+  'coming soon',
+  'security',
+  'preferences',
+  'api keys, entitlements, and usage',
+  'billing data unavailable',
+]
+const lowerAccountPage = accountPage.toLowerCase()
+for (const marker of forbiddenAccountMarkers) {
+  if (lowerAccountPage.includes(marker)) {
+    console.error(`Account page contains forbidden clutter marker: ${marker}`)
+    process.exit(1)
+  }
+}
+
+if (!accountPage.includes('openUserProfile()')) {
+  console.error('Manage profile action is not wired to Clerk modal profile management.')
   process.exit(1)
 }
 
@@ -90,6 +141,15 @@ for (const file of coreFiles) {
       console.error(`Found forbidden copy marker in ${file}: ${marker}`)
       process.exit(1)
     }
+  }
+}
+
+const projectWordBlacklist = ['create a project to create a key', 'select a project', 'project context']
+for (const marker of projectWordBlacklist) {
+  const lower = onboarding.toLowerCase()
+  if (lower.includes(marker)) {
+    console.error(`Found deprecated project-scoped onboarding copy: ${marker}`)
+    process.exit(1)
   }
 }
 
@@ -148,17 +208,10 @@ for (const file of docsLinkFiles) {
   }
 }
 
-const projectRouteFiles = [
-  'app/(portal)/projects/[projectId]/page.tsx',
-  'app/(portal)/projects/[projectId]/api-keys/page.tsx',
-  'app/(portal)/projects/[projectId]/usage/page.tsx',
-]
-for (const file of projectRouteFiles) {
-  const content = fs.readFileSync(file, 'utf8')
-  if (!content.includes('redirect(')) {
-    console.error(`Expected project-scoped route to redirect in ${file}`)
-    process.exit(1)
-  }
+const internalMetricsPage = fs.readFileSync('app/internal/dev-metrics/page.tsx', 'utf8')
+if (!internalMetricsPage.includes('Developer Metrics') || !internalMetricsPage.includes('activation')) {
+  console.error('Internal developer metrics dashboard is missing expected content.')
+  process.exit(1)
 }
 
 console.log('Portal smoke check passed.')

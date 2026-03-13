@@ -9,7 +9,9 @@
     "start": "next start",
     "lint": "eslint .",
     "smoke:portal": "node scripts/portal-smoke.mjs",
-    "check:docs-contract": "node scripts/validate-docs-contract.mjs"
+    "check:docs-contract": "node scripts/validate-docs-contract.mjs",
+    "check:self-serve-flow": "node scripts/validate-self-serve-flow.mjs",
+    "test:dev-flow": "node scripts/test-dev-flow.mjs"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.0.0",

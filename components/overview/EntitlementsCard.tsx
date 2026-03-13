@@ -1,5 +1,5 @@
 import { Text } from '@/components/catalyst/text'
-import type { EntitlementDashboard } from '@/lib/api/types'
+import type { AccountEntitlements } from '@/lib/api/types'
 
 function formatNumber(value: number | null): string {
   if (value === null) return 'Unlimited'
@@ -7,7 +7,7 @@ function formatNumber(value: number | null): string {
 }
 
 type EntitlementsCardProps = {
-  entitlements: EntitlementDashboard | null
+  entitlements: AccountEntitlements | null
 }
 
 export function EntitlementsCard({ entitlements }: EntitlementsCardProps) {
@@ -20,30 +20,27 @@ export function EntitlementsCard({ entitlements }: EntitlementsCardProps) {
     )
   }
 
-  const requests = entitlements.requests
-  const limit = requests.limit
-  const used = requests.used
-  const remaining = requests.remaining
-
   return (
     <section className="rounded-xl border border-zinc-200 bg-white p-4">
       <div className="text-sm font-semibold text-zinc-900">Quota & Entitlements</div>
       <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <Text className="text-xs uppercase tracking-wide text-zinc-500">Plan</Text>
-          <div className="mt-1 text-sm font-medium text-zinc-900">{entitlements.plan.name}</div>
+          <div className="mt-1 text-sm font-medium text-zinc-900">{entitlements.plan}</div>
         </div>
         <div>
-          <Text className="text-xs uppercase tracking-wide text-zinc-500">Included quota</Text>
-          <div className="mt-1 text-sm font-medium text-zinc-900">{formatNumber(limit)}</div>
+          <Text className="text-xs uppercase tracking-wide text-zinc-500">API key limit</Text>
+          <div className="mt-1 text-sm font-medium text-zinc-900">{formatNumber(entitlements.api_key_limit)}</div>
         </div>
         <div>
-          <Text className="text-xs uppercase tracking-wide text-zinc-500">Used</Text>
-          <div className="mt-1 text-sm font-medium text-zinc-900">{used.toLocaleString()}</div>
+          <Text className="text-xs uppercase tracking-wide text-zinc-500">Requests/day limit</Text>
+          <div className="mt-1 text-sm font-medium text-zinc-900">
+            {formatNumber(entitlements.usage_limits.requests_per_day ?? null)}
+          </div>
         </div>
         <div>
-          <Text className="text-xs uppercase tracking-wide text-zinc-500">Remaining</Text>
-          <div className="mt-1 text-sm font-medium text-zinc-900">{formatNumber(remaining)}</div>
+          <Text className="text-xs uppercase tracking-wide text-zinc-500">Status</Text>
+          <div className="mt-1 text-sm font-medium text-zinc-900">{entitlements.status}</div>
         </div>
       </div>
     </section>

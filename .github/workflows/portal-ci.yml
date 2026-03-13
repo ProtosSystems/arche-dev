@@ -33,3 +33,9 @@ jobs:
 
       - name: Docs contract validation
         run: npm run check:docs-contract
+
+      - name: Self-serve flow validation
+        run: npm run check:self-serve-flow
+
+      - name: Developer flow tests
+        run: npm run test:dev-flow
