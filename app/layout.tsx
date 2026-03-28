@@ -2,6 +2,7 @@ import './globals.css'
 import { ThemeProvider } from '@/components/theme/ThemeProvider'
 import { getSiteUrl, siteDescription, siteKeywords, siteName, siteTitle, socialImagePath, socialProfiles } from '@/lib/site'
 import type { Metadata } from 'next'
+import Script from 'next/script'
 import ClerkProviderClient from './clerk-provider'
 
 const siteUrl = getSiteUrl()
@@ -82,7 +83,6 @@ export const metadata: Metadata = {
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const gtmId = 'GTM-MQSNMPDC'
   const organizationSchema = {
     '@context': 'https://schema.org',
     '@type': 'Organization',
@@ -130,15 +130,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className="antialiased" suppressHydrationWarning>
       <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-})(window,document,'script','dataLayer','${gtmId}');`,
-          }}
+        <Script
+          id="plausible-script"
+          src="https://plausible.io/js/pa-bR5KNzP-5AEmB1q9n0jsR.js"
+          strategy="afterInteractive"
         />
+        <Script id="plausible-init" strategy="afterInteractive">
+          {`window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};plausible.init()`}
+        </Script>
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -167,14 +166,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600,700&display=swap" />
       </head>
       <body className="min-h-screen bg-[var(--protos-surface-muted)] text-[var(--protos-text)] transition-colors">
-        <noscript>
-          <iframe
-            src={`https://www.googletagmanager.com/ns.html?id=${gtmId}`}
-            height="0"
-            width="0"
-            style={{ display: 'none', visibility: 'hidden' }}
-          />
-        </noscript>
         <ThemeProvider>
           <ClerkProviderClient>{children}</ClerkProviderClient>
         </ThemeProvider>
