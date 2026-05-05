@@ -4,7 +4,7 @@ const isPublicRoute = createRouteMatcher([
   '/login(.*)',
   '/sign-up(.*)',
   '/sso-callback(.*)',
-  '/internal/webhooks/paddle(.*)',
+  '/internal/webhooks/paddle',
 ])
 const authDisabled = process.env.AUTH_DISABLED_FOR_DEV === 'true'
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { Button } from '@/components/catalyst/button'
+import { usePortal } from '@/components/portal/PortalProvider'
 import { useState, useTransition } from 'react'
 
 type BillingActionsProps = {
@@ -9,8 +10,10 @@ type BillingActionsProps = {
 }
 
 export function BillingActions({ status, showUpgrade }: BillingActionsProps) {
+  const { accessState, selectedEnvironment } = usePortal()
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+  const environmentId = accessState?.environment_ids[selectedEnvironment] ?? null
 
   const toUserMessage = (raw: unknown) => {
     const message = typeof raw === 'string' ? raw : 'Billing action is currently unavailable.'
@@ -35,7 +38,7 @@ export function BillingActions({ status, showUpgrade }: BillingActionsProps) {
       const res = await fetch('/api/billing/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ environment_id: environmentId }),
       })
       const payload = await res.json().catch(() => ({}))
       const url = payload?.data?.checkout_url
@@ -50,7 +53,11 @@ export function BillingActions({ status, showUpgrade }: BillingActionsProps) {
   const runPortal = () => {
     setError(null)
     startTransition(async () => {
-      const res = await fetch('/api/billing/portal', { method: 'POST' })
+      const res = await fetch('/api/billing/portal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ environment_id: environmentId }),
+      })
       const payload = await res.json().catch(() => ({}))
       const url = payload?.data?.portal_url
       if (!res.ok || !url) {
@@ -67,14 +74,17 @@ export function BillingActions({ status, showUpgrade }: BillingActionsProps) {
 
   return (
     <div className="flex flex-col items-start gap-2">
+      {!environmentId ? (
+        <div className="text-sm text-amber-600">No {selectedEnvironment} environment is provisioned for billing yet.</div>
+      ) : null}
       <div className="flex gap-2">
         {showUpgradeButton && (
-          <Button color="dark/zinc" onClick={runCheckout} disabled={pending}>
+          <Button color="dark/zinc" onClick={runCheckout} disabled={pending || !environmentId}>
             Purchase access
           </Button>
         )}
         {showManageButton && (
-          <Button color="dark/zinc" onClick={runPortal} disabled={pending}>
+          <Button color="dark/zinc" onClick={runPortal} disabled={pending || !environmentId}>
             Manage billing
           </Button>
         )}

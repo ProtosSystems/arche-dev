@@ -1,9 +1,15 @@
-import { archeApiRequest, jsonError } from '@/lib/arche-api.server'
+import { archeApiRequest, jsonError, resolvePortalEnvironment } from '@/lib/arche-api.server'
 import type { BillingSubscription, SuccessEnvelope } from '@/lib/api/types'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
-  const res = await archeApiRequest<SuccessEnvelope<BillingSubscription>>(request, '/v1/protected/billing/subscription')
+  const environment = resolvePortalEnvironment(request)
+  if (!environment.ok) {
+    return jsonError(environment)
+  }
+  const res = await archeApiRequest<SuccessEnvelope<BillingSubscription>>(request, '/v1/protected/billing/subscription', {
+    headers: { 'X-Environment': environment.data },
+  })
   if (!res.ok) {
     return jsonError(res)
   }

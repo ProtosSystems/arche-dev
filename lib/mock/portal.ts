@@ -28,21 +28,22 @@ function readState(): MockState {
     apiKeys: clone(fixtureApiKeys),
     usageRows: clone(fixtureUsageRows),
     entitlement: {
-      entitlement: {
-        source_of_truth: 'arche_api',
-        plan: 'Developer',
-        status: 'active',
-        api_key_limit: 5,
-        usage_limits: {
-          requests_per_day: 50000,
-          ai_budget_usd: null,
-        },
-        active_api_key_count: fixtureApiKeys.filter((item) => item.revoked_at === null).length,
-        updated_at: new Date().toISOString(),
+      current_environment: 'sandbox',
+      entitlement_status: 'active',
+      plan_name: 'Developer',
+      allowed_environments: ['sandbox'],
+      sandbox_access_status: 'active',
+      production_access_status: 'inactive',
+      api_key_limit: 5,
+      api_key_count: fixtureApiKeys.filter((item) => item.revoked_at === null).length,
+      can_create_sandbox_key: true,
+      can_create_production_key: false,
+      blocked_reason_codes: [],
+      feature_flags: {},
+      environment_ids: {
+        sandbox: 'sandbox-env',
+        production: null,
       },
-      can_create_api_keys: true,
-      purchase_required: false,
-      reason: null,
     },
   }
 
@@ -100,12 +101,11 @@ function filterByRange(rows: UsageRow[], range: UsageRange) {
 }
 
 function syncEntitlementCounts(state: MockState): MockState {
-  state.entitlement.entitlement.active_api_key_count = state.apiKeys.filter((key) => key.revoked_at === null).length
-  state.entitlement.entitlement.updated_at = nowIso()
-  const limit = state.entitlement.entitlement.api_key_limit
-  state.entitlement.can_create_api_keys =
-    state.entitlement.entitlement.status === 'active' &&
-    (limit === null || state.entitlement.entitlement.active_api_key_count < limit)
+  state.entitlement.api_key_count = state.apiKeys.filter((key) => key.revoked_at === null).length
+  const limit = state.entitlement.api_key_limit
+  state.entitlement.can_create_sandbox_key =
+    state.entitlement.sandbox_access_status === 'active' &&
+    (limit === null || state.entitlement.api_key_count < limit)
   return state
 }
 
@@ -123,12 +123,12 @@ export const mockPortalApi: PortalApi = {
 
   async createApiKey(input): Promise<APIKeyCreateResult> {
     const state = syncEntitlementCounts(readState())
-    if (!state.entitlement.can_create_api_keys) {
+    if (!state.entitlement.can_create_sandbox_key) {
       throw new Error('Entitlement is not active for API key creation.')
     }
 
-    const limit = state.entitlement.entitlement.api_key_limit
-    const active = state.entitlement.entitlement.active_api_key_count
+    const limit = state.entitlement.api_key_limit
+    const active = state.entitlement.api_key_count
     if (typeof limit === 'number' && active >= limit) {
       throw new Error('API key limit reached for current plan.')
     }

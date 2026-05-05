@@ -4,6 +4,7 @@ export type NormalizedApiError = {
   userMessage: string
   debugMessage?: string
   requestId?: string
+  details?: unknown
   troubleshootingUrl: string
 }
 
@@ -21,12 +22,14 @@ export class ApiError extends Error {
   status: number
   code: string
   requestId?: string
+  details?: unknown
 
-  constructor(status: number, code: string, message: string, requestId?: string) {
+  constructor(status: number, code: string, message: string, requestId?: string, details?: unknown) {
     super(message)
     this.status = status
     this.code = code
     this.requestId = requestId
+    this.details = details
   }
 }
 
@@ -43,6 +46,7 @@ export function normalizeApiError(err: unknown): NormalizedApiError {
       userMessage,
       debugMessage: err.message,
       requestId: err.requestId,
+      details: err.details,
       troubleshootingUrl: TROUBLESHOOTING_URL,
     }
   }

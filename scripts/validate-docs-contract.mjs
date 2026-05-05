@@ -1,6 +1,8 @@
 import fs from 'node:fs'
 
 const docsFiles = [
+  'README.md',
+  'docs/dev_portal.md',
   'docs/quickstart.md',
   'docs/golden_path.md',
   'docs/authentication.md',
@@ -119,7 +121,7 @@ for (const file of docsFiles) {
 
   const content = fs.readFileSync(file, 'utf8')
 
-  if (content.includes('Authorization: Bearer')) {
+  if (/[-]H\s+['"]Authorization:\s+Bearer/i.test(content) || /^Authorization:\s+Bearer/im.test(content)) {
     failures.push(`${file}: contains non-canonical auth example 'Authorization: Bearer'`)
   }
 

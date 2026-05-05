@@ -9,14 +9,17 @@ import { formatBillingStatusLabel, formatPlanNameLabel } from '@/components/port
 import { createApiClient } from '@/lib/api/client'
 import type { NormalizedApiError } from '@/lib/api/errors'
 import { normalizeApiError } from '@/lib/api/errors'
-import type { ControlPlaneApiKeyList, SuccessEnvelope, UsageSummary } from '@/lib/api/types'
+import type { ControlPlaneApiKeyList, IntegrationHealth, RateLimitState, SuccessEnvelope, UsageSummary } from '@/lib/api/types'
 import { Button } from '@/components/catalyst/button'
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
+import { IntegrationHealthPanel } from '@/components/overview/IntegrationHealthPanel'
 
 type OverviewSnapshot = {
   summary24h: UsageSummary | null
-  keys: { id: string; revoked_at: string | null; last_used_at: string | null }[]
+  health: IntegrationHealth | null
+  rateLimitState: RateLimitState | null
+  keys: { id: string; name: string; masked_key: string; created_at: string; revoked_at: string | null; last_used_at: string | null }[]
 }
 
 const overviewClient = createApiClient({ baseUrl: '', retries: 2 })
@@ -72,7 +75,7 @@ function formatDateTime(value: string | null): string {
 }
 
 export default function DashboardHomePage() {
-  const { accessState } = usePortal()
+  const { accessState, orgContext, selectedEnvironment } = usePortal()
   const [snapshot, setSnapshot] = useState<OverviewSnapshot | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<NormalizedApiError | null>(null)
@@ -86,8 +89,10 @@ export default function DashboardHomePage() {
       try {
         const query24h = new URLSearchParams({ window: '24h' })
 
-        const [summary24hRes, keysRes] = await Promise.all([
+        const [summary24hRes, healthRes, rateLimitRes, keysRes] = await Promise.all([
           overviewClient.get<SuccessEnvelope<UsageSummary>>(`/api/usage/summary?${query24h.toString()}`),
+          overviewClient.get<SuccessEnvelope<IntegrationHealth>>('/api/integration-health'),
+          overviewClient.get<SuccessEnvelope<RateLimitState>>('/api/rate-limit-state'),
           overviewClient.get<SuccessEnvelope<ControlPlaneApiKeyList>>('/api/keys'),
         ])
 
@@ -95,7 +100,16 @@ export default function DashboardHomePage() {
 
         setSnapshot({
           summary24h: summary24hRes.data,
-          keys: keysRes.data.items.map((key) => ({ id: key.id, revoked_at: key.revoked_at, last_used_at: key.last_used_at })),
+          health: healthRes.data,
+          rateLimitState: rateLimitRes.data,
+          keys: keysRes.data.items.map((key) => ({
+            id: key.id,
+            name: key.name ?? key.masked_key,
+            masked_key: key.masked_key,
+            created_at: key.created_at,
+            revoked_at: key.revoked_at,
+            last_used_at: key.last_used_at,
+          })),
         })
       } catch (err) {
         if (active) {
@@ -113,7 +127,7 @@ export default function DashboardHomePage() {
     return () => {
       active = false
     }
-  }, [])
+  }, [selectedEnvironment, orgContext?.selected_org_id])
 
   const stats24h = useMemo(() => statusCountsFromSummary(snapshot?.summary24h ?? null), [snapshot?.summary24h])
 
@@ -129,8 +143,14 @@ export default function DashboardHomePage() {
   }, [activeKeys])
   const requests24h = snapshot?.summary24h?.total_requests ?? 0
   const failed24h = stats24h.error4xx + stats24h.error5xx
-  const accessStatus = accessState?.entitlement.status ?? 'inactive'
-  const accessActive = accessState?.can_create_api_keys ?? false
+  const accessStatus =
+    selectedEnvironment === 'production'
+      ? accessState?.production_access_status ?? 'inactive'
+      : accessState?.sandbox_access_status ?? 'inactive'
+  const accessActive =
+    selectedEnvironment === 'production'
+      ? (accessState?.can_create_production_key ?? false)
+      : (accessState?.can_create_sandbox_key ?? false)
 
   return (
     <PageShell title="Overview" description="Purchase access, create an API key, then make your first successful request.">
@@ -142,19 +162,17 @@ export default function DashboardHomePage() {
               <Text className="mt-1 text-sm text-zinc-700">Access status unavailable.</Text>
             ) : accessActive ? (
               <Text className="mt-1 text-sm text-zinc-700">
-                Step 1 complete. Plan: {formatPlanNameLabel(accessState.entitlement.plan)}. You can now create an API key.
+                Step 1 complete. Plan: {formatPlanNameLabel(accessState.plan_name)}. You can now create an API key.
               </Text>
-            ) : accessState.purchase_required ? (
-              <Text className="mt-1 text-sm text-zinc-700">Step 1: purchase access before creating an API key.</Text>
             ) : (
               <Text className="mt-1 text-sm text-zinc-700">
-                Access inactive ({formatBillingStatusLabel(accessStatus)}). Resolve billing to continue with API key creation.
+                Access inactive for {selectedEnvironment} ({formatBillingStatusLabel(accessStatus)}). Resolve billing to continue with API key creation.
               </Text>
             )}
           </div>
           {!accessActive ? (
             <Button color="dark/zinc" href="/billing">
-              {accessState?.purchase_required ? 'Purchase access' : 'Go to Billing'}
+              Go to Billing
             </Button>
           ) : (
             <Link
@@ -193,6 +211,14 @@ export default function DashboardHomePage() {
               </Link>
             </div>
           </section>
+
+          <IntegrationHealthPanel
+            health={snapshot?.health ?? null}
+            rateLimitState={snapshot?.rateLimitState ?? null}
+            keys={snapshot?.keys ?? []}
+            apiKeyLimit={accessState?.api_key_limit ?? null}
+            apiKeyCount={accessState?.api_key_count ?? 0}
+          />
         </>
       ) : null}
     </PageShell>

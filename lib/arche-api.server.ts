@@ -3,8 +3,15 @@ import 'server-only'
 import { NextResponse } from 'next/server'
 
 const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:8000'
+const ORG_COOKIE_NAME = 'org_id'
+const ENV_COOKIE_NAME = 'portal_environment'
 
 type JsonObject = Record<string, unknown>
+export type PortalEnvironment = 'sandbox' | 'production'
+
+type ArcheApiRequestOptions = RequestInit & {
+  omitOrgHeader?: boolean
+}
 
 export type ArcheApiError = {
   status: number
@@ -17,7 +24,7 @@ export type ArcheApiResult<T> =
   | { ok: true; status: number; data: T; requestId?: string }
   | { ok: false; status: number; message: string; details?: unknown; requestId?: string }
 
-function buildHeaders(request: Request, init?: RequestInit, token?: string) {
+function buildHeaders(request: Request, init?: ArcheApiRequestOptions, token?: string) {
   const headers = new Headers(init?.headers)
   const cookies = parseCookies(request.headers.get('cookie'))
   if (token) {
@@ -27,9 +34,13 @@ function buildHeaders(request: Request, init?: RequestInit, token?: string) {
   if (requestId) {
     headers.set('x-request-id', requestId)
   }
-  const orgId = request.headers.get('x-org-id') || cookies.org_id
-  if (orgId) {
+  const orgId = request.headers.get('x-org-id') || cookies[ORG_COOKIE_NAME]
+  if (orgId && !init?.omitOrgHeader) {
     headers.set('X-Org-Id', orgId)
+  }
+  const envName = request.headers.get('x-environment') || cookies[ENV_COOKIE_NAME]
+  if (envName && !headers.has('X-Environment')) {
+    headers.set('X-Environment', envName)
   }
   const envId = request.headers.get('x-env-id')
   if (envId) {
@@ -132,7 +143,7 @@ function getRequestIdFromHeaders(headers: Headers): string | undefined {
 export async function archeApiRequest<T>(
   request: Request,
   path: string,
-  init: RequestInit = {}
+  init: ArcheApiRequestOptions = {}
 ): Promise<ArcheApiResult<T>> {
   const tokenResult = requireToken(request)
   if (!tokenResult.ok) {
@@ -196,6 +207,20 @@ export function jsonError(error: ArcheApiError) {
   return NextResponse.json(body, { status: error.status, headers })
 }
 
+export function resolvePortalEnvironment(request: Request): ArcheApiResult<PortalEnvironment> {
+  const cookies = parseCookies(request.headers.get('cookie'))
+  const raw = (request.headers.get('x-environment') || cookies[ENV_COOKIE_NAME] || '').trim().toLowerCase()
+  if (raw === 'sandbox' || raw === 'production') {
+    return { ok: true, status: 200, data: raw }
+  }
+  return {
+    ok: false,
+    status: 400,
+    message: 'environment_selection_required',
+    details: { allowed: ['sandbox', 'production'] },
+  }
+}
+
 type OrgsResponse = {
   data?: {
     items?: Array<{
@@ -217,7 +242,7 @@ export async function resolveOrgId(request: Request): Promise<ArcheApiResult<str
 
   const cookies = parseCookies(request.headers.get('cookie'))
   const headerOrgId = request.headers.get('x-org-id')
-  const cookieOrgId = cookies.org_id
+  const cookieOrgId = cookies[ORG_COOKIE_NAME]
   const preferredOrgId = headerOrgId || cookieOrgId
   if (preferredOrgId && items.some((item) => item.id === preferredOrgId)) {
     return { ok: true, status: 200, data: preferredOrgId }

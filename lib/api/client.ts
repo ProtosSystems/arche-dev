@@ -17,9 +17,26 @@ type ErrorEnvelope = {
   error?: {
     message?: string
     request_id?: string
+    details?: unknown
   }
   message?: string
   request_id?: string
+  details?: unknown
+}
+
+function readPortalEnvironmentCookie(): string | undefined {
+  if (typeof document === 'undefined') {
+    return undefined
+  }
+  const match = document.cookie
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith('portal_environment='))
+  if (!match) {
+    return undefined
+  }
+  const value = decodeURIComponent(match.slice('portal_environment='.length)).trim().toLowerCase()
+  return value === 'sandbox' || value === 'production' ? value : undefined
 }
 
 function delay(ms: number) {
@@ -79,6 +96,14 @@ function readMessageFromPayload(payload: unknown, fallback: string): string {
   return fallback
 }
 
+function readDetailsFromPayload(payload: unknown): unknown {
+  if (typeof payload !== 'object' || payload === null) {
+    return undefined
+  }
+  const maybe = payload as ErrorEnvelope
+  return maybe.error?.details ?? maybe.details
+}
+
 export function createApiClient(options: ApiClientOptions = {}) {
   const timeoutMs = options.timeoutMs ?? 12_000
   const retries = Math.max(0, Math.min(options.retries ?? 2, 3))
@@ -98,6 +123,10 @@ export function createApiClient(options: ApiClientOptions = {}) {
         const requestId = getRequestId()
         if (requestId) {
           headers.set('x-request-id', requestId)
+        }
+        const selectedEnvironment = readPortalEnvironmentCookie()
+        if (selectedEnvironment) {
+          headers.set('x-environment', selectedEnvironment)
         }
 
         if (config.body !== undefined) {
@@ -131,7 +160,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
           const statusCode = toApiCode(res.status)
           const fallback = statusCode === 'UNKNOWN' ? `HTTP ${res.status}` : text || `HTTP ${res.status}`
           const message = typeof payload === 'string' ? payload : readMessageFromPayload(payload, fallback)
-          throw new ApiError(res.status, statusCode, message, requestId)
+          throw new ApiError(res.status, statusCode, message, requestId, readDetailsFromPayload(payload))
         }
 
         if (res.status === 204) {

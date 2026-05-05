@@ -26,21 +26,19 @@ export function EntitlementsCard({ entitlements }: EntitlementsCardProps) {
       <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <Text className="text-xs uppercase tracking-wide text-zinc-500">Plan</Text>
-          <div className="mt-1 text-sm font-medium text-zinc-900">{entitlements.plan}</div>
+          <div className="mt-1 text-sm font-medium text-zinc-900">{entitlements.plan_name ?? 'Not purchased'}</div>
         </div>
         <div>
           <Text className="text-xs uppercase tracking-wide text-zinc-500">API key limit</Text>
           <div className="mt-1 text-sm font-medium text-zinc-900">{formatNumber(entitlements.api_key_limit)}</div>
         </div>
         <div>
-          <Text className="text-xs uppercase tracking-wide text-zinc-500">Requests/day limit</Text>
-          <div className="mt-1 text-sm font-medium text-zinc-900">
-            {formatNumber(entitlements.usage_limits.requests_per_day ?? null)}
-          </div>
+          <Text className="text-xs uppercase tracking-wide text-zinc-500">Allowed environments</Text>
+          <div className="mt-1 text-sm font-medium text-zinc-900">{entitlements.allowed_environments.join(', ') || 'None'}</div>
         </div>
         <div>
           <Text className="text-xs uppercase tracking-wide text-zinc-500">Status</Text>
-          <div className="mt-1 text-sm font-medium text-zinc-900">{entitlements.status}</div>
+          <div className="mt-1 text-sm font-medium text-zinc-900">{entitlements.entitlement_status}</div>
         </div>
       </div>
     </section>

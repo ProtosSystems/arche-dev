@@ -14,13 +14,16 @@ import { portalApi } from '@/lib/api/portal'
 import { useEffect, useMemo, useState } from 'react'
 
 export default function OnboardingPage() {
-  const { accessState, refreshAccess } = usePortal()
+  const { accessState, refreshAccess, selectedEnvironment } = usePortal()
   const [keyName, setKeyName] = useState('Quickstart Key')
   const [createdSecret, setCreatedSecret] = useState<string | null>(null)
   const [error, setError] = useState<NormalizedApiError | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const canCreate = accessState?.can_create_api_keys ?? false
+  const canCreate =
+    selectedEnvironment === 'production'
+      ? (accessState?.can_create_production_key ?? false)
+      : (accessState?.can_create_sandbox_key ?? false)
 
   useEffect(() => {
     void fetch('/api/internal/dev-metrics/events', {
@@ -67,19 +70,36 @@ export default function OnboardingPage() {
           <Text className="mt-2 text-sm text-zinc-700">
             Arche API canonical entitlement status:{' '}
             <span className="font-medium text-zinc-900">
-              {formatBillingStatusLabel(accessState?.entitlement.status)}
+              {formatBillingStatusLabel(
+                selectedEnvironment === 'production'
+                  ? accessState?.production_access_status
+                  : accessState?.sandbox_access_status
+              )}
             </span>
           </Text>
           {!canCreate ? (
             <div className="mt-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
               <div className="font-semibold">2. Inactive entitlement: complete Paddle purchase</div>
-              <div className="mt-1">{accessState?.reason ?? 'Your entitlement is not active yet.'}</div>
+              <div className="mt-1">
+                {accessState?.blocked_reason_codes.length
+                  ? `Blocked for ${selectedEnvironment}: ${accessState.blocked_reason_codes.join(', ')}`
+                  : 'Your entitlement is not active yet.'}
+              </div>
               <div className="mt-3">
-                <BillingActions status={accessState?.entitlement.status ?? null} showUpgrade />
+                <BillingActions
+                  status={
+                    selectedEnvironment === 'production'
+                      ? accessState?.production_access_status ?? null
+                      : accessState?.sandbox_access_status ?? null
+                  }
+                  showUpgrade
+                />
               </div>
             </div>
           ) : (
-            <Text className="mt-2 text-xs text-emerald-700">Entitlement is active. You can create an API key now.</Text>
+            <Text className="mt-2 text-xs text-emerald-700">
+              Entitlement is active for {selectedEnvironment}. You can create an API key now.
+            </Text>
           )}
         </li>
 

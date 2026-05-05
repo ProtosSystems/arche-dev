@@ -19,6 +19,7 @@ import {
   UserCircleIcon,
 } from '@heroicons/react/20/solid'
 import { usePathname } from 'next/navigation'
+import { usePortal } from './PortalProvider'
 
 type NavItem = {
   id: string
@@ -56,6 +57,8 @@ function NavLinks() {
 }
 
 export function PortalShell({ children }: { children: React.ReactNode }) {
+  const { orgSelectionRequired } = usePortal()
+
   return (
     <SidebarLayout
       navbar={<div className="px-2 text-sm font-semibold text-zinc-900">Arche Portal</div>}
@@ -87,6 +90,11 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
     >
       <div className="portal-shell space-y-6">
         <AppHeader />
+        {orgSelectionRequired ? (
+          <section className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Select an organization above before using billing, keys, or access-managed portal actions.
+          </section>
+        ) : null}
         <main>{children}</main>
       </div>
     </SidebarLayout>

@@ -114,30 +114,68 @@ export type BillingSubscription = {
 }
 
 export type EntitlementState = 'inactive' | 'trial' | 'active' | 'past_due' | 'cancelled'
+export type PortalEnvironment = 'sandbox' | 'production'
+
+export type OrgSummary = {
+  id: string
+  name: string
+}
+
+export type OrgContext = {
+  selected_org_id: string | null
+  organizations: OrgSummary[]
+  requires_selection: boolean
+}
 
 export type AccountEntitlements = {
-  plan: string | null
-  status: EntitlementState
+  current_environment: PortalEnvironment
+  entitlement_status: EntitlementState
+  plan_name: string | null
+  allowed_environments: PortalEnvironment[]
+  sandbox_access_status: EntitlementState
+  production_access_status: EntitlementState
   api_key_limit: number | null
-  usage_limits: {
-    requests_per_day?: number | null
-    ai_budget_usd?: number | null
-    ai_budget_limit_usd?: number | null
-    ai_budget_used_usd?: number | null
-    [key: string]: number | null | undefined
+  api_key_count: number
+  can_create_sandbox_key: boolean
+  can_create_production_key: boolean
+  blocked_reason_codes: string[]
+  feature_flags: Record<string, boolean>
+  environment_ids: {
+    sandbox: string | null
+    production: string | null
   }
-  subscription_status?: string | null
-  active_api_key_count: number
-  updated_at?: string | null
-  source_of_truth?: 'arche_api'
 }
 
-export type SelfServeAccessState = {
-  entitlement: AccountEntitlements
-  can_create_api_keys: boolean
-  purchase_required: boolean
-  reason: string | null
+export type IntegrationHealthError = {
+  request_id: string
+  handler: string
+  endpoint_class: string
+  status_code: number
+  requested_at: string
 }
+
+export type IntegrationHealth = {
+  current_environment: PortalEnvironment
+  first_successful_api_call_at: string | null
+  latest_request_at: string | null
+  latest_request_endpoint: string | null
+  latest_request_status: number | null
+  latest_request_id: string | null
+  recent_errors: IntegrationHealthError[]
+}
+
+export type RateLimitState = {
+  current_environment: PortalEnvironment
+  current_tier: string | null
+  current_endpoint_class: string | null
+  limit: number | null
+  remaining: number | null
+  reset_at: string | null
+  backend: string | null
+  window_seconds: number | null
+}
+
+export type SelfServeAccessState = AccountEntitlements
 
 export type PortalApi = {
   getSelfServeAccessState: () => Promise<SelfServeAccessState>

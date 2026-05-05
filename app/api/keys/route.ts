@@ -1,12 +1,16 @@
-import { archeApiRequest, jsonError } from '@/lib/arche-api.server'
+import { archeApiRequest, jsonError, resolvePortalEnvironment } from '@/lib/arche-api.server'
 import { recordActivationEvent } from '@/lib/dev-metrics/store'
 import { requireCurrentUserId } from '@/lib/dev-metrics/user'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
+  const environment = resolvePortalEnvironment(request)
+  if (!environment.ok) {
+    return jsonError(environment)
+  }
   try {
     const res = await archeApiRequest(request, '/v1/api-keys', {
-      headers: { 'X-Environment': 'sandbox' },
+      headers: { 'X-Environment': environment.data },
     })
     if (!res.ok) {
       console.error('keys upstream error', {
@@ -28,6 +32,10 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const environment = resolvePortalEnvironment(request)
+  if (!environment.ok) {
+    return jsonError(environment)
+  }
   const body = await request.json().catch(() => ({}))
   const name = typeof body?.name === 'string' ? body.name.trim() : ''
   if (!name) {
@@ -36,7 +44,7 @@ export async function POST(request: Request) {
 
   const res = await archeApiRequest(request, '/v1/api-keys', {
     method: 'POST',
-    headers: { 'X-Environment': 'sandbox' },
+    headers: { 'X-Environment': environment.data },
     body: JSON.stringify({
       name,
     }),

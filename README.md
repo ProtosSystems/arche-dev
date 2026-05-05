@@ -45,6 +45,8 @@ External onboarding examples use:
 - `X-Api-Key`
 - `X-Request-ID`
 
+Portal users authenticate with Clerk. Runtime Arche API calls use `X-Api-Key`; they do not use the Clerk session cookie or `Authorization: Bearer` as the public quickstart path.
+
 ## SDK-First Integration
 
 After validating connectivity with cURL, use the Python SDK as the primary integration path:

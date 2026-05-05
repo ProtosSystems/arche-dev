@@ -33,7 +33,10 @@ export default function AccountPage() {
     email ??
     'Personal account'
   const userId = user?.id ?? null
-  const subscriptionStatus = accessState?.entitlement.subscription_status ?? null
+  const subscriptionStatus =
+    accessState && (accessState.production_access_status !== 'inactive' || accessState.sandbox_access_status !== 'inactive')
+      ? `${accessState.sandbox_access_status} sandbox / ${accessState.production_access_status} production`
+      : null
 
   return (
     <PageShell title="Account" description="Who owns this API access.">

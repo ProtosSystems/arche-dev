@@ -6,9 +6,11 @@ Arche docs are rooted at `https://docs.arche.fi`.
 
 1. Sign in to `https://app.arche.fi`
 2. Open `Onboarding`
-3. If access is gated, complete purchase via Paddle from the portal billing action
-4. Create an API key directly in the portal
-5. Copy and run this request
+3. Select the correct org if your Clerk user belongs to multiple orgs
+4. Select `sandbox` or `production` explicitly in the portal shell
+5. If access is gated, complete purchase via Paddle from the portal billing action
+6. Create an API key directly in the portal
+7. Copy and run this request
 
 <!-- contract: GET /v1/views/metrics -->
 ```bash
@@ -46,5 +48,7 @@ For deterministic finance workflows, use [reproducibility.md](./reproducibility.
 External developer onboarding uses one canonical auth mechanism:
 
 - `X-Api-Key: <YOUR_API_KEY>`
+
+Clerk is only for signing into the developer portal. Paddle webhooks are server-to-server and do not require Clerk.
 
 For full auth guidance, see [authentication.md](./authentication.md).

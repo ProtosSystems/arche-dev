@@ -23,8 +23,8 @@ const webhookRoute = read('app/internal/webhooks/paddle/route.ts')
 if (!keysRoute.includes('/v1/api-keys')) {
   failures.push('API key list/create route must use /v1/api-keys canonical endpoint')
 }
-if (!keysRoute.includes('auto_provision_defaults')) {
-  failures.push('API key create route must request internal default provisioning')
+if (!keysRoute.includes("'X-Environment': environment.data")) {
+  failures.push('API key create route must forward the explicit selected environment')
 }
 if (!revokeRoute.includes("method: 'DELETE'") || !revokeRoute.includes('/v1/api-keys/')) {
   failures.push('API key revoke route must use DELETE /v1/api-keys/{key_id}')

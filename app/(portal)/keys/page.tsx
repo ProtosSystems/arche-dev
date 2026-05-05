@@ -17,7 +17,7 @@ import { DocumentDuplicateIcon } from '@heroicons/react/20/solid'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 export default function KeysPage() {
-  const { accessState, refreshAccess } = usePortal()
+  const { accessState, refreshAccess, selectedEnvironment } = usePortal()
   const [keys, setKeys] = useState<APIKey[]>([])
   const [name, setName] = useState('')
   const [secret, setSecret] = useState<string | null>(null)
@@ -28,7 +28,10 @@ export default function KeysPage() {
   const [copiedSecret, setCopiedSecret] = useState(false)
   const [revokeTarget, setRevokeTarget] = useState<APIKey | null>(null)
 
-  const canCreate = accessState?.can_create_api_keys ?? false
+  const canCreate =
+    selectedEnvironment === 'production'
+      ? (accessState?.can_create_production_key ?? false)
+      : (accessState?.can_create_sandbox_key ?? false)
 
   const load = useCallback(async () => {
     try {
@@ -44,8 +47,8 @@ export default function KeysPage() {
   }, [load])
 
   const limitText = useMemo(() => {
-    const limit = accessState?.entitlement.api_key_limit ?? null
-    const active = accessState?.entitlement.active_api_key_count ?? 0
+    const limit = accessState?.api_key_limit ?? null
+    const active = accessState?.api_key_count ?? 0
     if (limit === null) {
       return `${active} active keys (no plan limit reported)`
     }
@@ -109,15 +112,32 @@ export default function KeysPage() {
       <section className="rounded-xl border border-zinc-200 bg-white p-4">
         <div className="text-sm font-semibold text-zinc-900">Key eligibility</div>
         <div className="mt-1 text-sm text-zinc-700">
-          Entitlement status: {formatBillingStatusLabel(accessState?.entitlement.status)}
+          Entitlement status:{' '}
+          {formatBillingStatusLabel(
+            selectedEnvironment === 'production'
+              ? accessState?.production_access_status
+              : accessState?.sandbox_access_status
+          )}
+          {' '}for {selectedEnvironment}
         </div>
         <div className="mt-1 text-sm text-zinc-700">{limitText}</div>
 
         {!canCreate ? (
           <div className="mt-3 space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
             <div className="font-medium">API key creation is currently gated</div>
-            <div>{accessState?.reason ?? 'Step 1 is required first. Purchase access before creating an API key.'}</div>
-            <BillingActions status={accessState?.entitlement.status ?? null} showUpgrade />
+            <div>
+              {accessState?.blocked_reason_codes.length
+                ? accessState.blocked_reason_codes.join(', ')
+                : 'Step 1 is required first. Purchase access before creating an API key.'}
+            </div>
+            <BillingActions
+              status={
+                selectedEnvironment === 'production'
+                  ? accessState?.production_access_status ?? null
+                  : accessState?.sandbox_access_status ?? null
+              }
+              showUpgrade
+            />
           </div>
         ) : (
           <div className="mt-3">
@@ -167,6 +187,7 @@ export default function KeysPage() {
       <Dialog open={openCreate} onClose={() => setOpenCreate(false)} size="lg">
         <DialogTitle>Create API Key</DialogTitle>
         <DialogDescription>Keys are created directly under your Arche account/org entitlement.</DialogDescription>
+        <DialogDescription>Selected environment: {selectedEnvironment}</DialogDescription>
         <DialogBody>
           <label className="text-xs uppercase tracking-wide text-zinc-500">Name</label>
           <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Backend key" />
