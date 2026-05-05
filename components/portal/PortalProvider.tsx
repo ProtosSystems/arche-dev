@@ -16,6 +16,7 @@ type PortalContextValue = {
   orgContext: OrgContext | null
   loadingOrgContext: boolean
   orgSelectionRequired: boolean
+  orgContextError: string | null
   refreshAccess: () => Promise<void>
   refreshOrgContext: () => Promise<void>
   switchOrganization: (orgId: string) => Promise<void>
@@ -63,6 +64,7 @@ export function PortalProvider({ children }: { children: React.ReactNode }) {
   const [orgContext, setOrgContext] = useState<OrgContext | null>(null)
   const [loadingOrgContext, setLoadingOrgContext] = useState(true)
   const [orgSelectionRequired, setOrgSelectionRequired] = useState(false)
+  const [orgContextError, setOrgContextError] = useState<string | null>(null)
 
   const refreshOrgContext = useCallback(async () => {
     setLoadingOrgContext(true)
@@ -70,6 +72,11 @@ export function PortalProvider({ children }: { children: React.ReactNode }) {
       const next = await fetchOrgContext()
       setOrgContext(next)
       setOrgSelectionRequired(next.requires_selection)
+      setOrgContextError(null)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to load organization context.'
+      setOrgContextError(message)
+      setOrgContext(null)
     } finally {
       setLoadingOrgContext(false)
     }
@@ -91,6 +98,7 @@ export function PortalProvider({ children }: { children: React.ReactNode }) {
         setAccessState(null)
         setAccessError(null)
         setOrgSelectionRequired(true)
+        setOrgContextError(null)
         setOrgContext((current) => ({
           selected_org_id: current?.selected_org_id ?? null,
           organizations,
@@ -151,6 +159,7 @@ export function PortalProvider({ children }: { children: React.ReactNode }) {
       orgContext,
       loadingOrgContext,
       orgSelectionRequired,
+      orgContextError,
       refreshAccess,
       refreshOrgContext,
       switchOrganization,
@@ -164,6 +173,7 @@ export function PortalProvider({ children }: { children: React.ReactNode }) {
       orgContext,
       loadingOrgContext,
       orgSelectionRequired,
+      orgContextError,
       refreshAccess,
       refreshOrgContext,
       switchOrganization,

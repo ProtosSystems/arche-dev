@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 
 const required = [
-  'app/login/page.tsx',
+  'app/login/[[...rest]]/page.tsx',
   'app/(portal)/page.tsx',
   'app/(portal)/onboarding/page.tsx',
   'app/(portal)/keys/page.tsx',

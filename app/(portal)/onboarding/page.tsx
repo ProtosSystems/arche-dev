@@ -7,6 +7,7 @@ import { Text } from '@/components/catalyst/text'
 import { ApiErrorNotice } from '@/components/portal/ApiErrorNotice'
 import { PageShell } from '@/components/portal/PageShell'
 import { usePortal } from '@/components/portal/PortalProvider'
+import { getEnvironmentAccess } from '@/lib/portal/access-state.mjs'
 import { formatBillingStatusLabel } from '@/components/portal/utils'
 import type { NormalizedApiError } from '@/lib/api/errors'
 import { normalizeApiError } from '@/lib/api/errors'
@@ -20,10 +21,7 @@ export default function OnboardingPage() {
   const [error, setError] = useState<NormalizedApiError | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const canCreate =
-    selectedEnvironment === 'production'
-      ? (accessState?.can_create_production_key ?? false)
-      : (accessState?.can_create_sandbox_key ?? false)
+  const environmentAccess = getEnvironmentAccess(accessState, selectedEnvironment)
 
   useEffect(() => {
     void fetch('/api/internal/dev-metrics/events', {
@@ -71,13 +69,11 @@ export default function OnboardingPage() {
             Arche API canonical entitlement status:{' '}
             <span className="font-medium text-zinc-900">
               {formatBillingStatusLabel(
-                selectedEnvironment === 'production'
-                  ? accessState?.production_access_status
-                  : accessState?.sandbox_access_status
+                environmentAccess.entitlementStatus
               )}
             </span>
           </Text>
-          {!canCreate ? (
+          {!environmentAccess.canCreateKey ? (
             <div className="mt-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
               <div className="font-semibold">2. Inactive entitlement: complete Paddle purchase</div>
               <div className="mt-1">
@@ -86,14 +82,7 @@ export default function OnboardingPage() {
                   : 'Your entitlement is not active yet.'}
               </div>
               <div className="mt-3">
-                <BillingActions
-                  status={
-                    selectedEnvironment === 'production'
-                      ? accessState?.production_access_status ?? null
-                      : accessState?.sandbox_access_status ?? null
-                  }
-                  showUpgrade
-                />
+                <BillingActions status={environmentAccess.entitlementStatus} showUpgrade />
               </div>
             </div>
           ) : (
@@ -110,7 +99,7 @@ export default function OnboardingPage() {
               <Text className="text-xs uppercase tracking-wide text-zinc-500">Key name</Text>
               <Input value={keyName} onChange={(event) => setKeyName(event.target.value)} placeholder="Quickstart Key" />
             </div>
-            <Button color="dark/zinc" disabled={loading || !canCreate} onClick={handleCreateKey}>
+            <Button color="dark/zinc" disabled={loading || !environmentAccess.canCreateKey} onClick={handleCreateKey}>
               Create API key
             </Button>
           </div>

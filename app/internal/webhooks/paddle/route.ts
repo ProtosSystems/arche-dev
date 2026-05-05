@@ -1,33 +1,17 @@
 import { NextResponse } from 'next/server'
+import { collectPaddleHeaders } from '@/lib/portal/paddle-webhook.mjs'
 
 const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:8000'
 const WEBHOOK_PATH = '/internal/webhooks/paddle'
-
-function collectPaddleHeaders(request: Request): Headers | null {
-  const headers = new Headers()
-  let hasSignature = false
-
-  request.headers.forEach((value, key) => {
-    const normalized = key.toLowerCase()
-    if (normalized === 'content-type') {
-      headers.set(key, value)
-      return
-    }
-    if (normalized.startsWith('paddle-')) {
-      headers.set(key, value)
-    }
-    if (normalized === 'paddle-signature') {
-      hasSignature = true
-    }
-  })
-
-  return hasSignature ? headers : null
-}
+const PADDLE_SIGNATURE_HEADER = 'paddle-signature'
 
 export async function POST(request: Request) {
-  const headers = collectPaddleHeaders(request)
+  const headers = collectPaddleHeaders(request.headers)
   if (!headers) {
-    return NextResponse.json({ error: { message: 'missing_paddle_signature' } }, { status: 400 })
+    return NextResponse.json(
+      { error: { message: 'missing_paddle_signature', details: { header: PADDLE_SIGNATURE_HEADER } } },
+      { status: 400 }
+    )
   }
 
   const body = await request.text()

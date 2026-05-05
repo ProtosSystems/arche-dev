@@ -19,6 +19,7 @@ import {
   UserCircleIcon,
 } from '@heroicons/react/20/solid'
 import { usePathname } from 'next/navigation'
+import { useState, useTransition } from 'react'
 import { usePortal } from './PortalProvider'
 
 type NavItem = {
@@ -57,7 +58,20 @@ function NavLinks() {
 }
 
 export function PortalShell({ children }: { children: React.ReactNode }) {
-  const { orgSelectionRequired } = usePortal()
+  const { orgContext, orgContextError, orgSelectionRequired, switchOrganization } = usePortal()
+  const [pending, startTransition] = useTransition()
+  const [pickerError, setPickerError] = useState<string | null>(null)
+
+  const onOrgSelect = (orgId: string) => {
+    setPickerError(null)
+    startTransition(async () => {
+      try {
+        await switchOrganization(orgId)
+      } catch (error) {
+        setPickerError(error instanceof Error ? error.message : 'Unable to switch organization.')
+      }
+    })
+  }
 
   return (
     <SidebarLayout
@@ -92,7 +106,29 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
         <AppHeader />
         {orgSelectionRequired ? (
           <section className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            Select an organization above before using billing, keys, or access-managed portal actions.
+            <div className="font-semibold">Organization selection required</div>
+            <div className="mt-1">Pick an organization before using billing, keys, or other access-managed portal actions.</div>
+            {orgContext?.organizations.length ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <select
+                  className="rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-zinc-900"
+                  value={orgContext.selected_org_id ?? ''}
+                  disabled={pending}
+                  onChange={(event) => onOrgSelect(event.target.value)}
+                >
+                  <option value="" disabled>
+                    Select organization
+                  </option>
+                  {orgContext.organizations.map((org) => (
+                    <option key={org.id} value={org.id}>
+                      {org.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
+            {pickerError ? <div className="mt-2 text-xs text-amber-700">{pickerError}</div> : null}
+            {orgContextError ? <div className="mt-2 text-xs text-amber-700">{orgContextError}</div> : null}
           </section>
         ) : null}
         <main>{children}</main>

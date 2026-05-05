@@ -11,8 +11,9 @@ export async function GET(request: Request) {
     return jsonError(environment)
   }
 
+  const headers = { 'X-Environment': environment.data }
   const res = await archeApiRequest<SuccessEnvelope<AccountEntitlements>>(request, '/v1/account/entitlements', {
-    headers: { 'X-Environment': environment.data },
+    headers,
   })
   if (!res.ok) {
     return jsonError(res)

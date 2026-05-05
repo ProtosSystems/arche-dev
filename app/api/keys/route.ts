@@ -1,4 +1,4 @@
-import { archeApiRequest, jsonError, resolvePortalEnvironment } from '@/lib/arche-api.server'
+import { archeApiRequest, jsonError, lookupPortalEnvironmentId, resolvePortalEnvironment } from '@/lib/arche-api.server'
 import { recordActivationEvent } from '@/lib/dev-metrics/store'
 import { requireCurrentUserId } from '@/lib/dev-metrics/user'
 import { NextResponse } from 'next/server'
@@ -8,9 +8,16 @@ export async function GET(request: Request) {
   if (!environment.ok) {
     return jsonError(environment)
   }
+  const environmentId = await lookupPortalEnvironmentId(request, environment.data)
+  if (!environmentId.ok) {
+    return jsonError(environmentId)
+  }
   try {
     const res = await archeApiRequest(request, '/v1/api-keys', {
-      headers: { 'X-Environment': environment.data },
+      headers: {
+        'X-Environment': environment.data,
+        ...(environmentId.data ? { 'X-Env-Id': environmentId.data } : {}),
+      },
     })
     if (!res.ok) {
       console.error('keys upstream error', {
@@ -36,6 +43,10 @@ export async function POST(request: Request) {
   if (!environment.ok) {
     return jsonError(environment)
   }
+  const environmentId = await lookupPortalEnvironmentId(request, environment.data)
+  if (!environmentId.ok) {
+    return jsonError(environmentId)
+  }
   const body = await request.json().catch(() => ({}))
   const name = typeof body?.name === 'string' ? body.name.trim() : ''
   if (!name) {
@@ -44,7 +55,10 @@ export async function POST(request: Request) {
 
   const res = await archeApiRequest(request, '/v1/api-keys', {
     method: 'POST',
-    headers: { 'X-Environment': environment.data },
+    headers: {
+      'X-Environment': environment.data,
+      ...(environmentId.data ? { 'X-Env-Id': environmentId.data } : {}),
+    },
     body: JSON.stringify({
       name,
     }),

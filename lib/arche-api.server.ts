@@ -13,6 +13,12 @@ type ArcheApiRequestOptions = RequestInit & {
   omitOrgHeader?: boolean
 }
 
+type AccountEntitlementsEnvelope = {
+  data?: {
+    environment_ids?: Partial<Record<PortalEnvironment, string | null>>
+  }
+}
+
 export type ArcheApiError = {
   status: number
   message: string
@@ -35,7 +41,7 @@ function buildHeaders(request: Request, init?: ArcheApiRequestOptions, token?: s
     headers.set('x-request-id', requestId)
   }
   const orgId = request.headers.get('x-org-id') || cookies[ORG_COOKIE_NAME]
-  if (orgId && !init?.omitOrgHeader) {
+  if (orgId && !init?.omitOrgHeader && !headers.has('X-Org-Id')) {
     headers.set('X-Org-Id', orgId)
   }
   const envName = request.headers.get('x-environment') || cookies[ENV_COOKIE_NAME]
@@ -43,7 +49,7 @@ function buildHeaders(request: Request, init?: ArcheApiRequestOptions, token?: s
     headers.set('X-Environment', envName)
   }
   const envId = request.headers.get('x-env-id')
-  if (envId) {
+  if (envId && !headers.has('X-Env-Id')) {
     headers.set('X-Env-Id', envId)
   }
   if (init?.body && !headers.has('Content-Type')) {
@@ -218,6 +224,26 @@ export function resolvePortalEnvironment(request: Request): ArcheApiResult<Porta
     status: 400,
     message: 'environment_selection_required',
     details: { allowed: ['sandbox', 'production'] },
+  }
+}
+
+export async function lookupPortalEnvironmentId(
+  request: Request,
+  environment: PortalEnvironment
+): Promise<ArcheApiResult<string | null>> {
+  const res = await archeApiRequest<AccountEntitlementsEnvelope>(request, '/v1/account/entitlements', {
+    headers: { 'X-Environment': environment },
+  })
+  if (!res.ok) {
+    return res
+  }
+
+  const environmentId = res.data.data?.environment_ids?.[environment]
+  return {
+    ok: true,
+    status: 200,
+    data: typeof environmentId === 'string' && environmentId.trim().length > 0 ? environmentId : null,
+    requestId: res.requestId,
   }
 }
 

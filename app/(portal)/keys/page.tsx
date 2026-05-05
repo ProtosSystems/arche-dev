@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ApiErrorNotice } from '@/components/portal/ApiErrorNotice'
 import { PageShell } from '@/components/portal/PageShell'
 import { usePortal } from '@/components/portal/PortalProvider'
+import { describeKeyLimit, getEnvironmentAccess } from '@/lib/portal/access-state.mjs'
 import { formatBillingStatusLabel, formatDateTime } from '@/components/portal/utils'
 import type { NormalizedApiError } from '@/lib/api/errors'
 import { normalizeApiError } from '@/lib/api/errors'
@@ -28,10 +29,7 @@ export default function KeysPage() {
   const [copiedSecret, setCopiedSecret] = useState(false)
   const [revokeTarget, setRevokeTarget] = useState<APIKey | null>(null)
 
-  const canCreate =
-    selectedEnvironment === 'production'
-      ? (accessState?.can_create_production_key ?? false)
-      : (accessState?.can_create_sandbox_key ?? false)
+  const environmentAccess = getEnvironmentAccess(accessState, selectedEnvironment)
 
   const load = useCallback(async () => {
     try {
@@ -46,14 +44,7 @@ export default function KeysPage() {
     void load()
   }, [load])
 
-  const limitText = useMemo(() => {
-    const limit = accessState?.api_key_limit ?? null
-    const active = accessState?.api_key_count ?? 0
-    if (limit === null) {
-      return `${active} active keys (no plan limit reported)`
-    }
-    return `${active}/${limit} active keys`
-  }, [accessState])
+  const limitText = useMemo(() => describeKeyLimit(accessState), [accessState])
 
   const onCreate = async () => {
     if (!name.trim()) {
@@ -112,17 +103,11 @@ export default function KeysPage() {
       <section className="rounded-xl border border-zinc-200 bg-white p-4">
         <div className="text-sm font-semibold text-zinc-900">Key eligibility</div>
         <div className="mt-1 text-sm text-zinc-700">
-          Entitlement status:{' '}
-          {formatBillingStatusLabel(
-            selectedEnvironment === 'production'
-              ? accessState?.production_access_status
-              : accessState?.sandbox_access_status
-          )}
-          {' '}for {selectedEnvironment}
+          Entitlement status: {formatBillingStatusLabel(environmentAccess.entitlementStatus)} for {selectedEnvironment}
         </div>
         <div className="mt-1 text-sm text-zinc-700">{limitText}</div>
 
-        {!canCreate ? (
+        {!environmentAccess.canCreateKey ? (
           <div className="mt-3 space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
             <div className="font-medium">API key creation is currently gated</div>
             <div>
@@ -130,14 +115,7 @@ export default function KeysPage() {
                 ? accessState.blocked_reason_codes.join(', ')
                 : 'Step 1 is required first. Purchase access before creating an API key.'}
             </div>
-            <BillingActions
-              status={
-                selectedEnvironment === 'production'
-                  ? accessState?.production_access_status ?? null
-                  : accessState?.sandbox_access_status ?? null
-              }
-              showUpgrade
-            />
+            <BillingActions status={environmentAccess.entitlementStatus} showUpgrade />
           </div>
         ) : (
           <div className="mt-3">
@@ -196,7 +174,7 @@ export default function KeysPage() {
           <Button plain onClick={() => setOpenCreate(false)}>
             Cancel
           </Button>
-          <Button color="dark/zinc" onClick={onCreate} disabled={busy || !canCreate}>
+          <Button color="dark/zinc" onClick={onCreate} disabled={busy || !environmentAccess.canCreateKey}>
             Create
           </Button>
         </DialogActions>

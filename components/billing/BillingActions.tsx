@@ -2,6 +2,7 @@
 
 import { Button } from '@/components/catalyst/button'
 import { usePortal } from '@/components/portal/PortalProvider'
+import { getEnvironmentAccess } from '@/lib/portal/access-state.mjs'
 import { useState, useTransition } from 'react'
 
 type BillingActionsProps = {
@@ -13,7 +14,7 @@ export function BillingActions({ status, showUpgrade }: BillingActionsProps) {
   const { accessState, selectedEnvironment } = usePortal()
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
-  const environmentId = accessState?.environment_ids[selectedEnvironment] ?? null
+  const environmentId = getEnvironmentAccess(accessState, selectedEnvironment).environmentId
 
   const toUserMessage = (raw: unknown) => {
     const message = typeof raw === 'string' ? raw : 'Billing action is currently unavailable.'

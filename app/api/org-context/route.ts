@@ -1,4 +1,5 @@
 import { archeApiRequest, jsonError } from '@/lib/arche-api.server'
+import { normalizeOrganizations, resolveOrgContext } from '@/lib/portal/org-context.mjs'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
@@ -13,31 +14,6 @@ type OrgListResponse = {
   }
 }
 
-function readOrganizations(details: unknown): OrgItem[] {
-  if (typeof details !== 'object' || details === null) {
-    return []
-  }
-  const payload = details as {
-    organizations?: unknown
-    error?: { details?: { organizations?: unknown } }
-  }
-  const organizations = payload.organizations ?? payload.error?.details?.organizations
-  if (!Array.isArray(organizations)) {
-    return []
-  }
-  return organizations.flatMap((item) => {
-    if (typeof item !== 'object' || item === null) {
-      return []
-    }
-    const id = (item as { id?: unknown }).id
-    const name = (item as { name?: unknown }).name
-    if (typeof id !== 'string' || typeof name !== 'string') {
-      return []
-    }
-    return [{ id, name }]
-  })
-}
-
 export async function GET(request: Request) {
   const cookieStore = await cookies()
   const selectedOrgId = cookieStore.get('org_id')?.value || null
@@ -50,12 +26,28 @@ export async function GET(request: Request) {
     return jsonError(res)
   }
 
-  const organizations = res.ok ? res.data.data?.items ?? [] : readOrganizations(res.details)
+  const organizations: OrgItem[] = res.ok ? res.data.data?.items ?? [] : normalizeOrganizations(res.details)
+  const context = resolveOrgContext({
+    organizations,
+    selectedOrgId,
+    requiresSelection: res.status === 409,
+  })
+
+  if (context.shouldPersistCookie && context.selectedOrgId) {
+    cookieStore.set('org_id', context.selectedOrgId, {
+      httpOnly: true,
+      sameSite: 'lax',
+      path: '/',
+    })
+  } else if (context.shouldClearCookie) {
+    cookieStore.delete('org_id')
+  }
+
   return NextResponse.json(
     {
-      selected_org_id: selectedOrgId,
-      organizations,
-      requires_selection: res.status === 409,
+      selected_org_id: context.selectedOrgId,
+      organizations: context.organizations,
+      requires_selection: context.requiresSelection,
     },
     { status: 200 }
   )

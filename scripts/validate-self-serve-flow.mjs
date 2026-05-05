@@ -43,9 +43,12 @@ if (apiKeysRoute.includes('project_id') || apiKeysRoute.includes('environment_id
   failures.push('BFF keys POST route still exposes project/environment request contract')
 }
 
-for (const marker of ['/v1/account/entitlements', '/v1/api-keys']) {
-  if (!selfServeRoute.includes(marker)) {
-    failures.push(`Self-serve access route missing upstream dependency: ${marker}`)
+if (!selfServeRoute.includes('/v1/account/entitlements')) {
+  failures.push('Self-serve access route missing canonical entitlements dependency')
+}
+for (const forbidden of ['/api/billing/subscription', '/api/keys']) {
+  if (selfServeRoute.includes(forbidden)) {
+    failures.push(`Self-serve access route must not infer entitlements from ${forbidden}`)
   }
 }
 

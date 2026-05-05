@@ -5,6 +5,7 @@ import { ConnectionCard } from '@/components/overview/ConnectionCard'
 import { ApiErrorNotice } from '@/components/portal/ApiErrorNotice'
 import { PageShell } from '@/components/portal/PageShell'
 import { usePortal } from '@/components/portal/PortalProvider'
+import { getEnvironmentAccess } from '@/lib/portal/access-state.mjs'
 import { formatBillingStatusLabel, formatPlanNameLabel } from '@/components/portal/utils'
 import { createApiClient } from '@/lib/api/client'
 import type { NormalizedApiError } from '@/lib/api/errors'
@@ -143,14 +144,7 @@ export default function DashboardHomePage() {
   }, [activeKeys])
   const requests24h = snapshot?.summary24h?.total_requests ?? 0
   const failed24h = stats24h.error4xx + stats24h.error5xx
-  const accessStatus =
-    selectedEnvironment === 'production'
-      ? accessState?.production_access_status ?? 'inactive'
-      : accessState?.sandbox_access_status ?? 'inactive'
-  const accessActive =
-    selectedEnvironment === 'production'
-      ? (accessState?.can_create_production_key ?? false)
-      : (accessState?.can_create_sandbox_key ?? false)
+  const environmentAccess = getEnvironmentAccess(accessState, selectedEnvironment)
 
   return (
     <PageShell title="Overview" description="Purchase access, create an API key, then make your first successful request.">
@@ -160,17 +154,17 @@ export default function DashboardHomePage() {
             <div className="text-sm font-semibold text-zinc-900">Access status</div>
             {!accessState ? (
               <Text className="mt-1 text-sm text-zinc-700">Access status unavailable.</Text>
-            ) : accessActive ? (
+            ) : environmentAccess.canCreateKey ? (
               <Text className="mt-1 text-sm text-zinc-700">
                 Step 1 complete. Plan: {formatPlanNameLabel(accessState.plan_name)}. You can now create an API key.
               </Text>
             ) : (
               <Text className="mt-1 text-sm text-zinc-700">
-                Access inactive for {selectedEnvironment} ({formatBillingStatusLabel(accessStatus)}). Resolve billing to continue with API key creation.
+                Access inactive for {selectedEnvironment} ({formatBillingStatusLabel(environmentAccess.entitlementStatus)}). Resolve billing to continue with API key creation.
               </Text>
             )}
           </div>
-          {!accessActive ? (
+          {!environmentAccess.canCreateKey ? (
             <Button color="dark/zinc" href="/billing">
               Go to Billing
             </Button>

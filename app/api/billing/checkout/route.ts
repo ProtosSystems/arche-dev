@@ -1,4 +1,5 @@
 import { archeApiRequest, jsonError, resolvePortalEnvironment } from '@/lib/arche-api.server'
+import { buildCheckoutPayload, readEnvironmentId } from '@/lib/portal/billing-forwarding.mjs'
 import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
@@ -7,7 +8,7 @@ export async function POST(request: Request) {
   if (!environment.ok) {
     return jsonError(environment)
   }
-  const envId = typeof body?.environment_id === 'string' ? body.environment_id.trim() : ''
+  const envId = readEnvironmentId(body?.environment_id)
   if (!envId) {
     return NextResponse.json({ error: { message: 'environment_id_required' } }, { status: 400 })
   }
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
       'X-Environment': environment.data,
       'X-Env-Id': envId,
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify(buildCheckoutPayload(body)),
   })
   if (!res.ok) {
     return jsonError(res)

@@ -4,6 +4,7 @@ import { Avatar } from '@/components/catalyst/avatar'
 import { Text } from '@/components/catalyst/text'
 import { usePortal } from '@/components/portal/PortalProvider'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
+import { getEnvironmentAccess } from '@/lib/portal/access-state.mjs'
 import { formatPlanNameLabel } from '@/components/portal/utils'
 import type { PortalEnvironment } from '@/lib/api/types'
 import { UserButton } from '@clerk/nextjs'
@@ -54,7 +55,9 @@ export function AppHeader() {
     selectedEnvironment,
     setSelectedEnvironment,
     orgContext,
+    loadingOrgContext,
     orgSelectionRequired,
+    orgContextError,
     switchOrganization,
   } = usePortal()
   const authDisabled = process.env.NEXT_PUBLIC_AUTH_DISABLED_FOR_DEV === 'true'
@@ -62,6 +65,8 @@ export function AppHeader() {
   const planLabel = formatPlanNameLabel(accessState?.plan_name)
   const [pending, startTransition] = useTransition()
   const [orgError, setOrgError] = useState<string | null>(null)
+
+  const environmentAccess = getEnvironmentAccess(accessState, selectedEnvironment)
 
   const onOrgChange = (orgId: string) => {
     setOrgError(null)
@@ -134,10 +139,18 @@ export function AppHeader() {
             </select>
           ) : (
             <Text className="text-sm text-zinc-900">
-              {orgContext?.organizations[0]?.name ?? (orgSelectionRequired ? 'Organization selection required' : 'Loading…')}
+              {orgContext?.organizations[0]?.name ??
+                (orgContextError
+                  ? 'Organization unavailable'
+                  : orgSelectionRequired
+                    ? 'Organization selection required'
+                    : loadingOrgContext
+                      ? 'Loading…'
+                      : 'No organization found')}
             </Text>
           )}
           {orgError ? <Text className="text-xs text-amber-700">{orgError}</Text> : null}
+          {orgContextError ? <Text className="text-xs text-amber-700">{orgContextError}</Text> : null}
         </div>
 
         <div className="space-y-1">
@@ -154,6 +167,9 @@ export function AppHeader() {
               onClick={() => setSelectedEnvironment('production')}
             />
           </div>
+          {!environmentAccess.environmentId ? (
+            <Text className="text-xs text-amber-700">No {selectedEnvironment} environment is provisioned yet.</Text>
+          ) : null}
         </div>
       </div>
 
