@@ -20,6 +20,7 @@ type PortalContextValue = {
   refreshAccess: () => Promise<void>
   refreshOrgContext: () => Promise<void>
   switchOrganization: (orgId: string) => Promise<void>
+  renameOrganization: (orgId: string, name: string) => Promise<void>
 }
 
 const PortalContext = createContext<PortalContextValue | null>(null)
@@ -132,6 +133,23 @@ export function PortalProvider({ children }: { children: React.ReactNode }) {
     [refreshAccess, refreshOrgContext]
   )
 
+  const renameOrganization = useCallback(
+    async (orgId: string, name: string) => {
+      const response = await fetch(`/api/orgs/${encodeURIComponent(orgId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(payload?.error?.message || 'Unable to rename organization.')
+      }
+      await refreshOrgContext()
+    },
+    [refreshOrgContext]
+  )
+
   const setSelectedEnvironment = useCallback(
     (environment: PortalEnvironment) => {
       writeEnvironmentCookie(environment)
@@ -163,6 +181,7 @@ export function PortalProvider({ children }: { children: React.ReactNode }) {
       refreshAccess,
       refreshOrgContext,
       switchOrganization,
+      renameOrganization,
     }),
     [
       accessState,
@@ -177,6 +196,7 @@ export function PortalProvider({ children }: { children: React.ReactNode }) {
       refreshAccess,
       refreshOrgContext,
       switchOrganization,
+      renameOrganization,
     ]
   )
 
