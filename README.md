@@ -2,10 +2,10 @@
 
 ## Local Development
 
-### 1) Run backend (`arche_api`)
+### 1) Run backend (`arche-api`)
 
 ```bash
-cd ../arche_api
+cd ../arche-api
 uvicorn arche_api.main:app --reload --port 8000
 ```
 
@@ -49,9 +49,17 @@ Portal users authenticate with Clerk. Runtime Arche API calls use `X-Api-Key`; t
 
 ## SDK-First Integration
 
-After validating connectivity with cURL, use the Python SDK as the primary integration path:
+After validating connectivity with cURL, use the Python SDK as the primary integration path.
 
-- `docs/python_sdk.md`
+Published customer-facing documentation is canonical and lives in `arche-docs`
+(`https://docs.arche.fi`). The files under `docs/` here are the portal's own
+contract fixtures, checked by `npm run check:docs-contract`:
+
+| Topic | Canonical | Fixture |
+| --- | --- | --- |
+| Python SDK | `https://docs.arche.fi/sdks/python` | `docs/python_sdk.md` |
+| Quickstart | `https://docs.arche.fi/quickstart` | `docs/quickstart.md` |
+| Request IDs | `https://docs.arche.fi/troubleshooting/request-ids` | `docs/troubleshooting/request-ids.md` |
 
 ## Validation Commands
 
@@ -61,3 +69,9 @@ npm run build
 npm run smoke:portal
 npm run check:docs-contract
 ```
+
+`check:docs-contract` validates every documented example against the full
+published OpenAPI contract in `docs/contracts/openapi.json` (69 operations).
+Refresh that file from the same schema `arche-docs` publishes at
+`/openapi.json`; override the path with `OPENAPI_PATH` when testing against a
+different build.

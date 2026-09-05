@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useMemo, useState } from 'react'
 
 const API_BASE_URL = 'https://api.arche.fi'
-const EXAMPLE_ENDPOINT = '/v1/edgar/companies/AAPL'
+const EXAMPLE_ENDPOINT = '/v1/edgar/companies:resolve?ticker=AAPL'
 
 type ConnectionCardProps = {
   hasActiveKey: boolean

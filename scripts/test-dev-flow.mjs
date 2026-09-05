@@ -54,11 +54,26 @@ for (const marker of ['signups', 'keys_created', 'activated_developers', 'activa
   }
 }
 
-if (!onboarding.includes('/v1/edgar/companies/AAPL')) {
+if (!onboarding.includes('/v1/edgar/companies:resolve')) {
   failures.push('Onboarding must include the canonical first API call example')
 }
-if (!onboarding.includes('docs_quickstart_viewed')) {
-  failures.push('Onboarding must emit docs_quickstart_viewed instrumentation')
+
+// docs_quickstart_viewed is attributed on arrival from the docs quickstart
+// (?ref=quickstart), not on Onboarding mount, so the instrumentation lives in
+// the portal layout rather than in one page.
+const referralTracker = fs.readFileSync('components/portal/DocsReferralTracker.tsx', 'utf8')
+if (!referralTracker.includes('docs_quickstart_viewed')) {
+  failures.push('Docs referral tracker must emit docs_quickstart_viewed instrumentation')
+}
+if (!referralTracker.includes('quickstart')) {
+  failures.push('Docs referral tracker must key off the docs quickstart referral')
+}
+const portalLayout = fs.readFileSync('app/(portal)/layout.tsx', 'utf8')
+if (!portalLayout.includes('DocsReferralTracker')) {
+  failures.push('Portal layout must mount the docs referral tracker')
+}
+if (onboarding.includes('docs_quickstart_viewed')) {
+  failures.push('Onboarding must not fire docs_quickstart_viewed on mount')
 }
 
 if (!webhookRoute.includes('/internal/webhooks/paddle') || !webhookRoute.includes('paddle-signature')) {

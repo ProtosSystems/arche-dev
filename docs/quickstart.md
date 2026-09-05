@@ -37,7 +37,7 @@ from arche_sdk import ArcheClient
 
 with ArcheClient(api_key="YOUR_API_KEY") as client:
     company = client.companies.get("0000320193")
-    print(company.name)
+    print(company.entity_name)
 ```
 
 Continue with [python_sdk.md](./python_sdk.md) for typed workflows across companies, filings, and statements.

@@ -46,9 +46,28 @@ for (const label of forbiddenNavLabels) {
 }
 
 const onboarding = fs.readFileSync('app/(portal)/onboarding/page.tsx', 'utf8')
-if (!onboarding.includes('/v1/edgar/companies/AAPL')) {
+if (!onboarding.includes('/v1/edgar/companies:resolve')) {
   console.error('Onboarding does not include canonical first-success endpoint.')
   process.exit(1)
+}
+// The {cik} path parameter is normalized as digits, so a ticker in that position
+// is rejected before it reaches a handler. Ticker lookups go through :resolve.
+const tickerInCikPosition = /\/v1\/edgar\/companies\/[A-Z]{1,5}\b/
+const firstRequestSurfaces = ['app/(portal)/onboarding/page.tsx', 'components/overview/ConnectionCard.tsx']
+for (const file of firstRequestSurfaces) {
+  if (tickerInCikPosition.test(fs.readFileSync(file, 'utf8'))) {
+    console.error(`Found a ticker in the {cik} path position in ${file}; use /v1/edgar/companies:resolve instead.`)
+    process.exit(1)
+  }
+}
+for (const file of firstRequestSurfaces) {
+  const content = fs.readFileSync(file, 'utf8')
+  for (const header of ['X-Api-Key', 'X-Request-ID', 'Accept']) {
+    if (!content.includes(header)) {
+      console.error(`First-request example in ${file} is missing the ${header} header.`)
+      process.exit(1)
+    }
+  }
 }
 if (!onboarding.includes('X-Api-Key')) {
   console.error('Onboarding does not use canonical X-Api-Key auth guidance.')

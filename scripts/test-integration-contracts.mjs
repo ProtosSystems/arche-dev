@@ -99,7 +99,14 @@ for (const marker of ['Organization', 'Environment', 'setSelectedEnvironment', '
 if (!provider.includes("error.status === 409") || !provider.includes('org_context_required')) {
   failures.push('Portal provider must handle backend 409 org_context_required responses.')
 }
-if (!accessRoute.includes("headers: { 'X-Environment': environment.data }")) {
+// Assert the behavior, not one inline spelling of it: the route resolves the
+// selected environment, builds an X-Environment header from it, and passes that
+// header to the backend call.
+const forwardsEnvironment =
+  accessRoute.includes('resolvePortalEnvironment(request)') &&
+  /'X-Environment':\s*environment\.data/.test(accessRoute) &&
+  /archeApiRequest[\s\S]{0,200}headers/.test(accessRoute)
+if (!forwardsEnvironment) {
   failures.push('Self-serve access route must forward the explicit selected environment.')
 }
 for (const marker of ['Integration health', 'Copy request ID', 'Per-key last used', 'Recent 4xx and 5xx errors', 'Current quota or rate-limit state']) {

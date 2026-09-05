@@ -10,7 +10,9 @@ const docsFiles = [
   'docs/reproducibility.md',
   'docs/troubleshooting/request-ids.md',
 ]
-const openapiPath = process.env.OPENAPI_PATH || 'docs/contracts/openapi-min.json'
+// The full published contract, not a hand-maintained subset. Refresh it from the
+// same schema arche-docs publishes so all three repos validate against one spec.
+const openapiPath = process.env.OPENAPI_PATH || 'docs/contracts/openapi.json'
 
 if (!fs.existsSync(openapiPath)) {
   console.error(`OpenAPI file not found: ${openapiPath}`)

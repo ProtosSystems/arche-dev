@@ -12,7 +12,7 @@ import { formatBillingStatusLabel } from '@/components/portal/utils'
 import type { NormalizedApiError } from '@/lib/api/errors'
 import { normalizeApiError } from '@/lib/api/errors'
 import { portalApi } from '@/lib/api/portal'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 export default function OnboardingPage() {
   const { accessState, refreshAccess, selectedEnvironment } = usePortal()
@@ -23,17 +23,14 @@ export default function OnboardingPage() {
 
   const environmentAccess = getEnvironmentAccess(accessState, selectedEnvironment)
 
-  useEffect(() => {
-    void fetch('/api/internal/dev-metrics/events', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event: 'docs_quickstart_viewed' }),
-    }).catch(() => undefined)
-  }, [])
-
   const curlSnippet = useMemo(() => {
     const key = createdSecret ?? '<YOUR_API_KEY>'
-    return `curl https://api.arche.fi/v1/edgar/companies/AAPL \\\n  -H "X-Api-Key: ${key}"`
+    return [
+      `curl -X GET 'https://api.arche.fi/v1/edgar/companies:resolve?ticker=AAPL' \\`,
+      `  -H 'X-Api-Key: ${key}' \\`,
+      `  -H 'X-Request-ID: onboarding_001' \\`,
+      `  -H 'Accept: application/json'`,
+    ].join('\n')
   }, [createdSecret])
 
   const handleCreateKey = async () => {
