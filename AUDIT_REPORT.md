@@ -1,390 +1,402 @@
-# Environment Isolation Audit (arche_dev + arche_api)
+# Environment Isolation Audit (arche-api + arche-dev)
+
+**Re-audited:** 2026-09-06 against `arche-api` main `0dbb6b8b` and `arche-dev` main `88d07f9`.
+Supersedes the original audit, whose P0 findings have been remediated in code.
 
 ## Executive Summary (Go/No-Go)
-**Verdict: NO-GO (for publicly claiming “sandbox is fully isolated”).**
 
-The implementation has **real isolation primitives** for API keys, entitlements, and usage metering (environment-scoped DB fields + filters + auth context binding). However, it does **not yet meet the full hard-boundary definition** because:
+**Verdict: NO-GO (for publicly claiming "sandbox is fully isolated").**
 
-1. **Paddle webhook secret is shared across sandbox/production webhook services** in one deployment.
-2. **Billing client wiring supports only one Paddle environment (`PADDLE_ENV`) at a time**, making one side of the toggle non-functional for checkout/portal in a shared deployment.
-3. **Project webhook management/delivery streams are not implemented** (portal API returns empty / not available), so webhook isolation for customer webhooks cannot be validated.
+The verdict is unchanged, but the reasons are entirely different and more
+urgent. The original audit found that the code could not separate environments.
+That is fixed. What the code now supports, the deployment does not deliver, and
+two portal paths collapse production into sandbox:
 
----
+1. **The deployment wires only the legacy Paddle variables.** `infra/production`
+   injects `PADDLE_API_KEY` and `PADDLE_WEBHOOK_SECRET` and nothing else. The
+   per-environment variables the code expects appear nowhere outside
+   `.env.example`. This has two consequences, below.
+2. **Production billing is inert.** `get_billing_service` deliberately ignores
+   the legacy `paddle_api_key`, so with only that variable set the client map is
+   empty and every checkout or billing-portal call raises
+   `paddle_not_configured_for_env`.
+3. **Both webhook routes validate against the same secret.** Per-environment
+   secret selection falls back to the legacy shared secret when the specific one
+   is absent, which is the deployed configuration.
+4. **The portal's webhook relay records every event as sandbox.** It posts to
+   `/internal/webhooks/paddle`, which hardcodes `EnvironmentKind.SANDBOX`.
+5. **The billing subscription read ignores the selected environment.** It sends
+   `X-Environment`, but the protected billing resolver reads only `X-Env-Id`, so
+   it silently reports the sandbox subscription. Checkout and billing-portal on
+   the same page do send `X-Env-Id` and target the right environment.
 
-## Environment Source of Truth
-
-### Findings
-- In `arche_dev`, environment source is client state (`PortalProvider`) persisted to localStorage (`portal_environment`).
-- UI resolves environment **kind** (`sandbox|production`) to a concrete backend **environment UUID** (`env.id`) before calling BFF endpoints.
-- BFF forwards `x-env-id` to backend as `X-Env-Id`; query params are forwarded transparently.
-
-### Evidence
-
-`arche_dev/components/portal/PortalProvider.tsx`
-```ts
-const ENV_KEY = 'portal_environment'
-const [environment, setEnvironmentState] = useState<Environment>('sandbox')
-...
-if (env === 'sandbox' || env === 'production') {
-  setEnvironmentState(env)
-}
-...
-const setEnvironment = useCallback((value: Environment) => {
-  setEnvironmentState(value)
-  setStoredValue(ENV_KEY, value)
-}, [])
-```
-
-`arche_dev/lib/api/portal.ts`
-```ts
-const selected = envs.data.items.find((item) => item.kind === environment)
-...
-const headers = { 'x-env-id': envId }
-apiClient.get(`/api/usage/summary?window=24h&environment_id=${envId}`, headers)
-apiClient.get(`/api/keys?env_id=${envId}`, headers)
-```
-
-`arche_dev/lib/arche-api.server.ts`
-```ts
-const envId = request.headers.get('x-env-id')
-if (envId) {
-  headers.set('X-Env-Id', envId)
-}
-```
-
-`arche_dev/app/api/usage/summary/route.ts`
-```ts
-const query = url.searchParams.toString()
-const path = `/v1/protected/usage/summary${query ? `?${query}` : ''}`
-```
+Findings 2, 4, and 5 are not isolation gaps in the abstract. They are live
+defects in the production billing path.
 
 ---
 
-## Keys Isolation
+## Status of the Original Findings
 
-### Findings
-- API keys are persisted with both `env_id` and `environment` (`sandbox|production`) and linked to `environments` table.
-- Key material uses HMAC-SHA256 (`CONTROL_PLANE_API_KEY_SECRET`), raw keys not stored.
-- During auth, key -> environment -> project -> org chain is resolved; environment mismatch between key row and env row is rejected.
-- Auth principal is stamped with `environment_id` and `environment_kind`.
-- If caller supplies `X-Env-Id`/`X-Environment`, headers must match key’s environment, else `403`.
+| Original item | Status | Evidence |
+| --- | --- | --- |
+| P0: split webhook secrets by environment | **Closed in code** | `dependencies/paddle.py::_select_webhook_secret` branches on `EnvironmentKind` and raises `501 paddle_webhook_secret_not_configured_for_env` |
+| P0: dual-environment billing clients | **Closed in code** | `dependencies/billing.py` builds `paddle_clients` per `EnvironmentKind` from `PADDLE_API_KEY_SANDBOX` / `PADDLE_API_KEY_PRODUCTION` |
+| P1: enforce explicit env selection for billing | **Open** | `control_plane_router.py:161-163` still returns `SANDBOX` when `X-Env-Id` is absent |
+| P1: add contract/integration tests | **Closed** | see Test Coverage below |
+| P2: customer webhook isolation | **No longer applicable** | the customer-facing webhook stubs the original audit quoted are gone; `lib/api/portal.ts` has zero webhook references. The Paddle billing relay at `app/internal/webhooks/paddle` is a separate concern — see Finding 4 |
 
-### Evidence
-
-`arche_api/src/arche_api/infrastructure/database/models/control_plane/models.py`
-```py
-class ApiKey(...):
-    env_id = ForeignKey("environments.id", ...)
-    environment = SAEnum(EnvironmentKind, ...)
-```
-
-`arche_api/src/arche_api/domain/services/control_plane_api_keys.py`
-```py
-def hash_api_key(raw_key: str, *, secret: str) -> str:
-    return hmac.new(secret.encode("utf-8"), raw_key.encode("utf-8"), sha256).hexdigest()
-```
-
-`arche_api/src/arche_api/infrastructure/auth/api_key_dependency.py`
-```py
-if matched.environment != env.kind:
-    raise HTTPException(status_code=500, detail="API key environment mismatch")
-...
-request.state.environment_id = principal.environment_id
-request.state.environment_kind = principal.environment_kind
-...
-if principal.environment_id != header_env_id:
-    raise HTTPException(status_code=403, detail="Forbidden")
-```
-
-`arche_api/src/arche_api/application/services/control_plane_service.py`
-```py
-env = await env_repo.get_by_id(env_id=env_id)
-api_key = await repo.create(env_id=env_id, environment=env.kind, ...)
-```
-
-### Assessment
-- **Hard boundary present for key identity and environment binding.**
-- Key prefix is not env-specific (`ak_`), but enforcement is by DB linkage and auth context, not prefix string.
+The original audit's evidence for the environment source of truth is also stale:
+`PortalProvider` now stores the selection in a cookie (`ENV_COOKIE_NAME`), not
+`localStorage`.
 
 ---
 
-## Entitlements/Billing Isolation
-
-### Findings
-- Entitlements and billing customer mapping are environment-scoped in DB with unique constraints per `(org_id, environment)`.
-- Control-plane billing/entitlements endpoints resolve environment from `X-Env-Id` (defaults to sandbox when absent).
-- Entitlement usage computation queries usage by environment kind.
+## Finding 1: The deployment does not wire per-environment secrets
 
 ### Evidence
 
-`arche_api/src/arche_api/infrastructure/database/models/control_plane/models.py`
-```py
-UniqueConstraint("org_id", "environment", name="uq_entitlements_org_env")
-UniqueConstraint("org_id", "environment", name="uq_billing_customer_map_org_env")
-```
-
-`arche_api/src/arche_api/adapters/routers/control_plane_router.py`
-```py
-env_id_header = request.headers.get("X-Env-Id")
-if env_id_header is None or not env_id_header.strip():
-    return EnvironmentKind.SANDBOX
+`arche-api/infra/production/main.tf`
+```hcl
+{ name = "PADDLE_ENV", value = "production" },
 ...
-subscription = await controller.get_subscription(org_id=org_id, environment=environment)
+{ name = "PADDLE_API_KEY",        valueFrom = var.paddle_api_key_secret_arn },
+{ name = "PADDLE_WEBHOOK_SECRET", valueFrom = var.paddle_webhook_secret_arn }
 ```
 
-`arche_api/src/arche_api/application/services/control_plane_service.py`
-```py
-ent = await repo.get_by_org_id(org_id=org_id, environment=environment)
-...
-return await usage_repo.total_requests(..., environment=environment)
+`arche-api/infra/production/variables.tf` *requires* both legacy ARNs:
+```hcl
+condition     = var.paddle_api_key_secret_arn != null
+error_message = "paddle_api_key_secret_arn must be set for production billing."
 ```
 
-`arche_api/src/arche_api/adapters/repositories/control_plane_repository.py`
+No `.tf`, `.yml`, `.yaml`, or `.json` file in the repository references
+`PADDLE_API_KEY_SANDBOX`, `PADDLE_API_KEY_PRODUCTION`,
+`PADDLE_WEBHOOK_SECRET_SANDBOX`, or `PADDLE_WEBHOOK_SECRET_PRODUCTION`. They
+appear only in `.env.example`. `infra/staging/main.tf` has the same shape.
+
+The application already knows this is wrong and says so at startup
+(`config/settings/__init__.py`):
 ```py
-upsert_stmt = insert_stmt.on_conflict_do_update(
-    index_elements=["org_id", "environment"],
-    set_=update_values,
+logger.warning(
+    "Legacy Paddle env vars in use; prefer per-environment secrets/keys.",
+    extra={
+        "uses_legacy_paddle_webhook_secret": using_legacy_webhook_secret,
+        "uses_legacy_paddle_api_key": using_legacy_api_key,
+    },
 )
 ```
 
-### Gaps
-- **Single-environment billing client wiring** in `dependencies/billing.py`:
-```py
-if settings.paddle_api_key and settings.paddle_env:
-    env_kind = EnvironmentKind(settings.paddle_env.value)
-    paddle_clients.setdefault(env_kind, PaddleBillingClient(...))
-```
-Only one Paddle env client is available per deployment, so the other env path returns `paddle_not_configured`.
+### Assessment
+
+The code migration landed; the infrastructure migration did not. Everything
+below follows from this one gap.
+
+### Caveat
+
+This is read from Terraform at `origin/main`, not from the live ECS task
+definition. If the per-environment secrets were added out of band, Finding 2
+does not bite. **Verify against the running service before acting.**
 
 ---
 
-## Usage Isolation
-
-### Findings
-- Usage writes include `environment_id` from authenticated request context.
-- Usage bucket uniqueness and indexes include `environment_id`.
-- Usage read APIs accept `environment_id` filter and apply it in SQL.
-- Quota usage (entitlements dashboard) aggregates by **environment kind** via join with `environments.kind`.
+## Finding 2: Production billing is inert
 
 ### Evidence
 
-`arche_api/src/arche_api/infrastructure/middleware/usage_ledger.py`
+`arche-api/src/arche_api/dependencies/billing.py` consults only the
+per-environment settings — there is no legacy fallback:
 ```py
-environment_id = getattr(request.state, "environment_id", None)
-...
-await repo.increment_bucket(..., environment_id=environment_id, ...)
+paddle_api_key_sandbox = getattr(settings, "paddle_api_key_sandbox", None)
+paddle_api_key_production = getattr(settings, "paddle_api_key_production", None)
+
+sandbox_api_key = env_sandbox_api_key or (
+    paddle_api_key_sandbox.get_secret_value() if paddle_api_key_sandbox else None
+)
+production_api_key = env_production_api_key or (
+    paddle_api_key_production.get_secret_value() if paddle_api_key_production else None
+)
+
+if not any(api_key is not None for _, api_key in resolved_api_keys):
+    return BillingService(uow=uow, config=config, paddle_clients=paddle_clients)  # empty
 ```
 
-`arche_api/src/arche_api/infrastructure/database/models/control_plane/models.py`
+This is deliberate and asserted by
+`tests/unit/dependencies/test_billing_dependencies.py`:
 ```py
-"environment_id" included in unique bucket identity indexes
+def test_get_billing_service_ignores_legacy_key_fields(...):
+    ...
+    paddle_api_key=SecretStr("legacy_key"),
+    paddle_env="sandbox",
+    ...
+    assert service._paddle_clients == {}
 ```
 
-`arche_api/src/arche_api/adapters/repositories/control_plane_repository.py`
+`BillingService` then raises on a missing client
+(`application/services/billing_service.py:47`):
 ```py
-if environment_id is not None:
-    stmt = stmt.where(UsageBucketModel.environment_id == environment_id)
-```
-
-`arche_api/src/arche_api/adapters/repositories/control_plane_repository.py`
-```py
-.join(EnvironmentModel, EnvironmentModel.id == UsageBucketModel.environment_id)
-.where(..., EnvironmentModel.kind == environment)
+super().__init__("paddle_not_configured_for_env")
 ```
 
 ### Assessment
-- **Metering/query isolation is real**, provided authenticated requests carry correct environment context (which API-key auth does).
+
+With the deployed configuration — legacy key only — `paddle_clients` is empty
+for **both** environments. Checkout and billing-portal calls fail in production,
+not just in sandbox.
+
+`.env.example` documents the opposite and is wrong:
+> `PADDLE_API_KEY` is used only when a per-env API key is missing.
+> With `PADDLE_ENV` set, legacy `PADDLE_API_KEY` fallback is scoped to that env.
+
+No such fallback exists in `billing.py`.
 
 ---
 
-## Webhook Isolation
-
-### Findings
-- Paddle webhook events are environment-tagged and idempotency is keyed by `(environment, paddle_event_id)`.
-- Separate webhook routes exist for sandbox and production (`/v1/webhooks/paddle/sandbox`, `/v1/webhooks/paddle/production`).
-- **But webhook secret resolution is not environment-specific**: both env handlers use same `PADDLE_WEBHOOK_SECRET` source.
-- Project webhook endpoints/delivery streams (non-billing webhooks) are not implemented in portal API surface.
+## Finding 3: One webhook secret validates both environments
 
 ### Evidence
 
-`arche_api/src/arche_api/adapters/routers/webhooks_router.py`
+`arche-api/src/arche_api/dependencies/paddle.py`
 ```py
-@router.post("/paddle/sandbox")
-@router.post("/paddle/production")
+if environment == EnvironmentKind.SANDBOX:
+    return sandbox_secret or legacy_secret
+if environment == EnvironmentKind.PRODUCTION:
+    return production_secret or legacy_secret
 ```
 
-`arche_api/src/arche_api/dependencies/paddle.py`
-```py
-def _resolve_webhook_secret(settings, environment):
-    _ = environment
-    env_secret = os.getenv("PADDLE_WEBHOOK_SECRET")
-```
+The fallback is intentional and tested
+(`test_resolve_webhook_secret_legacy_fallback`). Combined with Finding 1, both
+`/v1/webhooks/paddle/sandbox` and `/v1/webhooks/paddle/production` resolve to
+the same `PADDLE_WEBHOOK_SECRET` in the deployed service.
 
-`arche_api/src/arche_api/infrastructure/database/models/control_plane/models.py`
-```py
-Index("uq_paddle_events_paddle_event_id", "environment", "paddle_event_id", unique=True, ...)
-```
+### Assessment
 
-`arche_api/src/arche_api/application/services/paddle_webhook_service.py`
-```py
-... get_by_customer_id(..., environment=self._environment)
-... upsert_entitlement(..., environment=self._environment)
-```
+The original P0 abuse scenario survives, one layer further out: a leaked secret
+still yields validly signed events against both environment routes. The
+difference is that this is now a configuration state rather than a code
+constraint, and it is fixable without a deploy of new code.
 
-`arche_dev/lib/api/portal.ts`
+---
+
+## Finding 4: The portal's webhook relay records every event as sandbox
+
+### Evidence
+
+`arche-dev/app/internal/webhooks/paddle/route.ts`
 ```ts
-async listWebhooks() { return [] }
-async upsertWebhook() { throw new Error('...not available...') }
-async listWebhookDeliveries() { return [] }
+const WEBHOOK_PATH = '/internal/webhooks/paddle'
+const upstream = await fetch(`${API_BASE_URL}${WEBHOOK_PATH}`, { ... })
+```
+
+`arche-api/src/arche_api/adapters/routers/webhooks_router.py`
+```py
+internal_router = APIRouter(prefix="/internal/webhooks", include_in_schema=False)
+
+@internal_router.post("/paddle", ...)
+async def paddle_webhook_internal(...):
+    return await _handle_paddle_webhook(
+        ...,
+        environment=EnvironmentKind.SANDBOX,
+    )
+```
+
+The public backward-compatible route has the same property:
+```py
+@router.post("/paddle", summary="Ingest Paddle sandbox webhook events", ...)
+    environment=EnvironmentKind.SANDBOX,
 ```
 
 ### Assessment
-- Billing webhook **data partitioning** is present.
-- Webhook **secret isolation boundary is incomplete**.
-- Customer webhook isolation is **not auditable** due missing implementation.
+
+Every Paddle event relayed through the portal is persisted with
+`environment = SANDBOX` and upserts the sandbox entitlement row
+(`uq_entitlements_org_env` is on `(org_id, environment)`). A production purchase
+delivered through this path never updates the production entitlement.
+
+Only the explicit `/paddle/sandbox` and `/paddle/production` routes carry the
+correct environment. The relay does not use them.
 
 ---
 
-## Risks & Abuse Scenarios
+## Finding 5: The billing subscription read ignores the selected environment
 
-1. **Cross-environment webhook blast radius**
-- If one shared Paddle webhook secret leaks, attacker can submit validly signed events to both sandbox and production webhook routes.
+### Evidence
 
-2. **Environment toggle appears broader than actual billing runtime support**
-- In a shared deployment, only one `PADDLE_ENV` client is wired; checkout/portal for other environment may fail, creating operational drift and confusing isolation guarantees.
+Two resolvers with different header contracts exist in `control_plane_router.py`:
 
-3. **Silent sandbox fallback if `X-Env-Id` omitted**
-- Billing/entitlements default to sandbox in router; clients that forget header can read/write against sandbox unintentionally.
+```py
+def _resolve_account_environment(request: Request) -> EnvironmentKind:   # line 112
+    raw = (request.headers.get("X-Environment") or "").strip().lower()
 
-4. **Webhook delivery-stream guarantees unavailable**
-- Project webhook endpoints are absent, so isolation for per-environment delivery streams/secrets cannot be proven.
+async def _resolve_billing_environment(...) -> EnvironmentKind:          # line 155
+    env_id_header = request.headers.get("X-Env-Id")
+    if env_id_header is None or not env_id_header.strip():
+        return EnvironmentKind.SANDBOX
+```
+
+The portal's protected billing routes do not agree on which headers to send:
+
+| Portal route | Backend path | Sends `X-Env-Id`? | Resolves correctly? |
+| --- | --- | --- | --- |
+| `POST /api/billing/checkout` | `/v1/protected/billing/checkout` | yes, from `body.environment_id`; `400 environment_id_required` if absent | yes |
+| `POST /api/billing/portal` | `/v1/protected/billing/portal` | yes, same contract | yes |
+| `GET /api/billing/subscription` | `/v1/protected/billing/subscription` | **no** — `X-Environment` only | **no**, defaults to sandbox |
+| `GET`/`POST /api/keys` | `/v1/api-keys` | yes, via `lookupPortalEnvironmentId` | yes (account resolver) |
+| `/api/entitlements`, `/api/account/entitlements` | `/v1/account/entitlements` | n/a | yes (account resolver) |
+
+`app/api/billing/subscription/route.ts`
+```ts
+const res = await archeApiRequest(request, '/v1/protected/billing/subscription', {
+  headers: { 'X-Environment': environment.data },
+})
+```
+
+`_resolve_billing_environment` does not read `X-Environment`, so this header has
+no effect and the call falls through to the sandbox default.
+
+### Assessment
+
+The Billing page displays the **sandbox** subscription regardless of the
+selected environment, while the checkout and manage-billing buttons on that same
+page correctly act on the selected one. A developer on production sees sandbox
+subscription state next to controls that modify production.
+
+This is narrower than the original audit's "silent sandbox fallback" risk, but
+it is the same root cause: an implicit default converts a missing header into a
+plausible wrong answer instead of an error. One inconsistent caller was enough
+to surface it, and the default is what let it ship unnoticed.
 
 ---
 
-## Black-Box Test Plan (local/dev)
+## What Is Genuinely Isolated
 
-Assumptions:
-- Backend base URL: `http://localhost:8000`
-- BFF URL: `http://localhost:3000`
-- You have a valid user session cookie (`__session`) for BFF calls.
-- You know: `ORG_ID`, `PROJECT_ID`, `SANDBOX_ENV_ID`, `PROD_ENV_ID`.
+These held up under re-audit and need no further work.
 
-### 1) Sandbox key cannot be used as production context
+### Keys
 
-Create sandbox key:
-```bash
-curl -i -X POST "http://localhost:3000/api/keys" \
-  -H "Content-Type: application/json" \
-  -H "x-org-id: $ORG_ID" \
-  -H "x-env-id: $SANDBOX_ENV_ID" \
-  -b "__session=$SESSION" \
-  --data '{"env_id":"'$SANDBOX_ENV_ID'","name":"audit-sbx-key"}'
-```
-Expected: `200`, returns raw key once.
+- `ApiKey` carries both `env_id` (FK to `environments`) and `environment`.
+- Key material is HMAC-SHA256 (`hash_api_key`); raw keys are not stored.
+- Auth resolves key → environment → project → org and rejects a mismatch
+  between the key row and the environment row.
+- `_enforce_environment_headers` returns `403` when a supplied `X-Env-Id` or
+  `X-Environment` disagrees with the principal's environment.
 
-Attempt API call with sandbox key but force production env header:
-```bash
-curl -i "http://localhost:8000/v1/views/metrics?symbol=AAPL" \
-  -H "X-Api-Key: $SANDBOX_RAW_KEY" \
-  -H "X-Env-Id: $PROD_ENV_ID"
-```
-Expected: `403 Forbidden` (header env mismatch).
+### Entitlements and billing customer mapping
 
-### 2) Sandbox traffic does not affect production usage
+- `UniqueConstraint("org_id", "environment", name="uq_entitlements_org_env")`
+- `UniqueConstraint("org_id", "environment", name="uq_billing_customer_map_org_env")`
 
-Generate sandbox traffic (repeat 20x):
-```bash
-for i in $(seq 1 20); do
-  curl -s -o /dev/null "http://localhost:8000/v1/views/metrics?symbol=AAPL" \
-    -H "X-Api-Key: $SANDBOX_RAW_KEY"
-done
-```
+### Usage
 
-Read usage summary per environment via BFF:
-```bash
-curl -s "http://localhost:3000/api/usage/summary?window=24h&environment_id=$SANDBOX_ENV_ID" \
-  -H "x-org-id: $ORG_ID" -H "x-env-id: $SANDBOX_ENV_ID" -b "__session=$SESSION"
+- The usage ledger only writes when `environment_id` is present on request state.
+- Both unique bucket identities include `environment_id`:
+  `uq_usage_buckets_identity_with_key` and `uq_usage_buckets_identity_no_key`.
+- Usage and request-activity reads filter on `environment_id`; quota
+  aggregation joins `environments` and filters on `kind`.
 
-curl -s "http://localhost:3000/api/usage/summary?window=24h&environment_id=$PROD_ENV_ID" \
-  -H "x-org-id: $ORG_ID" -H "x-env-id: $PROD_ENV_ID" -b "__session=$SESSION"
-```
-Expected: sandbox count increases; production remains unchanged.
+### Webhook event partitioning
 
-### 3) Entitlements are environment-scoped
+- `Index("uq_paddle_events_paddle_event_id", "environment", "paddle_event_id", unique=True, ...)`
+  so idempotency is per environment.
 
-Read entitlements for sandbox vs production:
-```bash
-curl -s "http://localhost:3000/api/entitlements" \
-  -H "x-org-id: $ORG_ID" -H "x-env-id: $SANDBOX_ENV_ID" -b "__session=$SESSION"
+---
 
-curl -s "http://localhost:3000/api/entitlements" \
-  -H "x-org-id: $ORG_ID" -H "x-env-id: $PROD_ENV_ID" -b "__session=$SESSION"
-```
-Expected: response `data.environment` and plan/quota can differ by env; no bleed.
+## Test Coverage
 
-Optional webhook check:
-- Post same signed test payload to `/v1/webhooks/paddle/sandbox` and `/v1/webhooks/paddle/production`.
-- Confirm records land with different `environment` in `paddle_events`.
+The original P1 request for contract and integration tests is satisfied:
+
+| Test | Covers |
+| --- | --- |
+| `tests/integration/control_plane/test_api_key_environment_isolation.py::test_api_key_env_header_mismatch_is_forbidden` | sandbox key + production env header → `403` |
+| `tests/integration/webhooks/test_paddle_webhook.py::test_paddle_webhook_secret_isolation_by_environment` | per-environment webhook secret validation |
+| `tests/integration/webhooks/test_paddle_webhook.py::test_paddle_webhook_idempotent_on_duplicate_event_id` | idempotency |
+| `tests/unit/dependencies/test_paddle_dependencies.py::test_resolve_webhook_secret_env_precedence` / `..._missing_for_env_raises` / `..._legacy_fallback` | secret selection, including the legacy fallback |
+| `tests/unit/dependencies/test_billing_dependencies.py::test_get_billing_service_with_both_paddle_clients` / `..._ignores_legacy_key_fields` | dual-environment client map |
+
+**Gap:** no test asserts that the portal's relay path preserves environment, and
+none asserts that a billing request without `X-Env-Id` is rejected rather than
+defaulted. Findings 4 and 5 are both invisible to the current suite.
+
+---
+
+## Risks
+
+1. **Production purchases do not grant production access.** Finding 4: relayed
+   events write the sandbox entitlement row.
+2. **Production checkout fails outright.** Finding 2: no billing client is
+   constructed from the deployed configuration.
+3. **Billing state is reported from the wrong environment.** Finding 5: the
+   subscription read always returns sandbox, shown beside controls that act on
+   production.
+4. **Cross-environment webhook blast radius.** Finding 3: one leaked secret is
+   valid on both routes.
+5. **Operational drift is invisible.** The startup warning about legacy Paddle
+   variables is the only signal, and nothing fails on it.
 
 ---
 
 ## Remediation Plan (Prioritized)
 
-### P0 (required before public claim): split webhook secrets by environment
-- Add settings:
-  - `PADDLE_WEBHOOK_SECRET_SANDBOX`
-  - `PADDLE_WEBHOOK_SECRET_PRODUCTION`
-- Update `dependencies/paddle.py`:
-  - `_resolve_webhook_secret(settings, environment)` must branch by `environment`.
-- Keep `/v1/webhooks/paddle/sandbox` and `/v1/webhooks/paddle/production` bound to corresponding secret.
+### P0 — Route the portal relay to an environment-explicit endpoint
 
-### P0 (required): make billing clients dual-environment
-- Add settings:
-  - `PADDLE_API_KEY_SANDBOX`
-  - `PADDLE_API_KEY_PRODUCTION`
-- Update `dependencies/billing.py`:
-  - Build `paddle_clients` map for both `EnvironmentKind.SANDBOX` and `EnvironmentKind.PRODUCTION` when configured.
-- Keep endpoint behavior deterministic: explicit 501 if env client missing.
+`arche-dev/app/internal/webhooks/paddle/route.ts` must select
+`/v1/webhooks/paddle/sandbox` or `/v1/webhooks/paddle/production`. If a single
+public ingress is required, keep one path and derive the environment from the
+verified payload rather than hardcoding it.
 
-### P1: enforce explicit env selection for billing/entitlements
-- In `control_plane_router._resolve_billing_environment`, remove implicit default sandbox for ambiguous contexts or gate it behind compatibility flag.
-- Return `400 missing_env_id` when required.
+Then retire the two `SANDBOX`-hardcoded routes, or make them return `501` rather
+than silently choosing an environment.
 
-### P1: add contract/integration tests
-- Tests for:
-  - sandbox key + production `X-Env-Id` => `403`
-  - usage bucket writes/read filters by `environment_id`
-  - webhook secret mismatch between env endpoints
-  - billing client map supports both envs
+### P0 — Make the two environment resolvers agree, and remove the default
 
-### P2: customer webhook isolation completion (if product scope includes it)
-- Implement real project webhook endpoints + delivery persistence with environment-scoped schema:
-  - `webhook_endpoints(env_id, secret_hash, ...)`
-  - `webhook_deliveries(env_id, endpoint_id, status, ... )`
-- Expose BFF routes and remove `portalApi.listWebhooks()/listWebhookDeliveries()` stubs.
+Teach `_resolve_billing_environment` to accept `X-Environment` as
+`_resolve_account_environment` already does, and have
+`app/api/billing/subscription/route.ts` send `X-Env-Id` the way checkout and
+portal do. Then remove the implicit sandbox default and return
+`400 missing_env_id`.
+
+Do all three. Fixing only the caller leaves the next omission silent, and fixing
+only the resolver leaves two header contracts for one concept.
+
+### P0 — Wire per-environment Paddle secrets in infrastructure
+
+Add `PADDLE_API_KEY_SANDBOX`, `PADDLE_API_KEY_PRODUCTION`,
+`PADDLE_WEBHOOK_SECRET_SANDBOX`, and `PADDLE_WEBHOOK_SECRET_PRODUCTION` to
+`infra/production` and `infra/staging`, with matching secret ARNs and variable
+validation. Confirm against the live task definition first — see the caveat in
+Finding 1.
+
+Once wired, drop the legacy fallback in `_select_webhook_secret` so a
+misconfiguration fails loudly instead of quietly sharing a secret.
+
+### P1 — Correct `.env.example`
+
+It documents a legacy `PADDLE_API_KEY` fallback that `billing.py` does not
+implement. Either implement the fallback or delete the claim; today it will lead
+an operator to configure a deployment that cannot bill.
+
+### P1 — Close the test gaps
+
+- The portal relay preserves environment end to end.
+- A protected billing request without an environment header is rejected.
+- Every portal BFF route that reaches a protected endpoint transmits the
+  selected environment; `subscription` was the one that did not.
+- Startup fails, or a health check degrades, when legacy Paddle variables are
+  the only ones configured in a non-test environment.
+
+### P2 — Promote the legacy-variable warning
+
+A startup `logger.warning` nobody reads is how Finding 1 survived. Surface it in
+a readiness check or a deployment gate.
 
 ---
 
 ## Isolation Decision
-- **Not cosmetic overall**: core key/entitlement/usage partitioning is real.
-- **Not adequate yet for public “sandbox is hard-isolated” claim** due webhook secret/client wiring gaps.
-- **Recommendation: NO-GO until P0 remediations are complete.**
 
----
-
-## If you want a stricter model (Option 2: True Sandbox)
-
-Given current architecture is already environment-partitioned in shared tables, the least disruptive upgrade path is:
-
-1. Keep current logical partitioning (`environment`, `environment_id`) for control-plane tables.
-2. Add **per-environment secret/material separation** for billing/webhooks.
-3. Optionally split runtime stores:
-   - Redis DB/prefix per environment for rate-limit/derived counters.
-   - Separate Postgres schema or database for sandbox if regulatory isolation is required.
-
-Concrete code targets:
-- `src/arche_api/config/settings/billing.py`
-- `src/arche_api/dependencies/billing.py`
-- `src/arche_api/dependencies/paddle.py`
-- `src/arche_api/adapters/routers/control_plane_router.py` (`_resolve_billing_environment` strictness)
-- integration tests under `tests/integration/webhooks/` and `tests/integration/adapters/routers/`
+- **Core partitioning is real and verified.** Keys, entitlements, usage, and
+  webhook event storage are all environment-scoped, with tests.
+- **The billing and webhook paths are not.** The webhook relay collapses
+  production into sandbox, the subscription read reports sandbox, and the
+  deployed configuration cannot construct a billing client at all.
+- **Recommendation: NO-GO until the three P0 items are complete**, with Findings
+  2 and 4 treated as production incidents rather than audit items — they affect
+  paying customers today, independently of any isolation claim.
