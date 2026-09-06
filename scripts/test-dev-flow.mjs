@@ -76,8 +76,14 @@ if (onboarding.includes('docs_quickstart_viewed')) {
   failures.push('Onboarding must not fire docs_quickstart_viewed on mount')
 }
 
-if (!webhookRoute.includes('/internal/webhooks/paddle') || !webhookRoute.includes('paddle-signature')) {
+// Relay behavior moved into lib/portal/paddle-ingress.ts so all three ingress
+// routes share one signature check and one environment-explicit backend path.
+const webhookRelay = fs.readFileSync('lib/portal/paddle-ingress.ts', 'utf8')
+if (!webhookRoute.includes('relayPaddleWebhook') || !webhookRelay.includes('paddle-signature')) {
   failures.push('Paddle webhook ingress route missing canonical proxy/signature checks')
+}
+if (!webhookRelay.includes('resolvePaddleWebhookPath')) {
+  failures.push('Paddle webhook relay must target an environment-explicit backend route')
 }
 
 if (failures.length > 0) {

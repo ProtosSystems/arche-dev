@@ -12,8 +12,8 @@ uvicorn arche_api.main:app --reload --port 8000
 ### 2) Run portal (`arche_dev`)
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 Portal: `http://localhost:3000`
@@ -53,7 +53,7 @@ After validating connectivity with cURL, use the Python SDK as the primary integ
 
 Published customer-facing documentation is canonical and lives in `arche-docs`
 (`https://docs.arche.fi`). The files under `docs/` here are the portal's own
-contract fixtures, checked by `npm run check:docs-contract`:
+contract fixtures, checked by `pnpm check:docs-contract`:
 
 | Topic | Canonical | Fixture |
 | --- | --- | --- |
@@ -64,10 +64,10 @@ contract fixtures, checked by `npm run check:docs-contract`:
 ## Validation Commands
 
 ```bash
-npm run lint
-npm run build
-npm run smoke:portal
-npm run check:docs-contract
+pnpm lint
+pnpm build
+pnpm smoke:portal
+pnpm check:docs-contract
 ```
 
 `check:docs-contract` validates every documented example against the full

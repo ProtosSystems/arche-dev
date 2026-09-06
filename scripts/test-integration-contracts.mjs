@@ -11,7 +11,12 @@ function read(file) {
 }
 
 const middleware = read('middleware.ts')
-const webhookRoute = read('app/internal/webhooks/paddle/route.ts')
+const webhookRoutes = [
+  'app/internal/webhooks/paddle/route.ts',
+  'app/internal/webhooks/paddle/sandbox/route.ts',
+  'app/internal/webhooks/paddle/production/route.ts',
+].map((file) => ({ file, content: read(file) }))
+const webhookRelay = read('lib/portal/paddle-ingress.ts')
 const orgContextRoute = read('app/api/org-context/route.ts')
 const accessRoute = read('app/api/self-serve/access/route.ts')
 const keysRoute = read('app/api/keys/route.ts')
@@ -26,24 +31,45 @@ const overview = read('app/(portal)/page.tsx')
 const billingActions = read('components/billing/BillingActions.tsx')
 const healthPanel = read('components/overview/IntegrationHealthPanel.tsx')
 
-if (!middleware.includes("'/internal/webhooks/paddle'")) {
-  failures.push('Middleware must keep only the exact Paddle webhook route public.')
+for (const route of [
+  "'/internal/webhooks/paddle'",
+  "'/internal/webhooks/paddle/sandbox'",
+  "'/internal/webhooks/paddle/production'",
+]) {
+  if (!middleware.includes(route)) {
+    failures.push(`Middleware must keep the exact Paddle webhook route public: ${route}`)
+  }
 }
 if (middleware.includes("/internal/webhooks/paddle(.*)")) {
   failures.push('Middleware must not broaden the Paddle webhook public exception.')
 }
 
-for (const marker of ['await request.text()', "fetch(`${API_BASE_URL}${WEBHOOK_PATH}`", 'missing_paddle_signature']) {
-  if (!webhookRoute.includes(marker)) {
+for (const marker of ['await request.text()', 'fetch(`${apiBaseUrl}${path}`', 'missing_paddle_signature']) {
+  if (!webhookRelay.includes(marker)) {
     failures.push(`Webhook relay missing required behavior marker: ${marker}`)
   }
 }
-if (webhookRoute.includes('archeApiRequest')) {
+// The unsuffixed backend routes hardcode sandbox, so relaying to them records a
+// production purchase against the sandbox entitlement row.
+if (!webhookRelay.includes('resolvePaddleWebhookPath')) {
+  failures.push('Webhook relay must resolve an environment-explicit backend path.')
+}
+if (/['"`]\/v1\/webhooks\/paddle['"`]/.test(webhookRelay)) {
+  failures.push('Webhook relay must not target the environment-ambiguous backend route.')
+}
+if (webhookRelay.includes('archeApiRequest')) {
   failures.push('Webhook relay must not use authenticated archeApiRequest plumbing.')
 }
 for (const forbidden of ['__session', 'auth()', '@clerk']) {
-  if (webhookRoute.includes(forbidden)) {
-    failures.push(`Webhook relay must not depend on Clerk/session auth (${forbidden}).`)
+  for (const { file, content } of [...webhookRoutes, { file: 'lib/portal/paddle-ingress.ts', content: webhookRelay }]) {
+    if (content.includes(forbidden)) {
+      failures.push(`Webhook relay must not depend on Clerk/session auth (${forbidden}) in ${file}.`)
+    }
+  }
+}
+for (const { file, content } of webhookRoutes) {
+  if (!content.includes('relayPaddleWebhook')) {
+    failures.push(`Paddle ingress route must relay through the shared helper: ${file}`)
   }
 }
 
