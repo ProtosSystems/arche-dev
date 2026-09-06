@@ -16,7 +16,7 @@ from arche_sdk import ArcheClient
 with ArcheClient(api_key="YOUR_API_KEY") as client:
     company = client.companies.get("0000320193")
     resolved = client.companies.resolve("AAPL")
-    print(company.name, resolved.cik)
+    print(company.entity_name, resolved.cik)
 ```
 
 ## Equivalent HTTP contract (company profile)
@@ -41,7 +41,7 @@ with ArcheClient(api_key="YOUR_API_KEY") as client:
         metrics=["GROSS_MARGIN"],
         frequency="annual",
     )
-    print(len(series.series))
+    print(len(series.points))
 ```
 
 ## Equivalent HTTP contract (derived metrics)

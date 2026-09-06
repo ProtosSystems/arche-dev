@@ -35,7 +35,8 @@
 - Live runtime rate-limit state is sourced from backend `GET /v1/account/rate-limit-state` via `/api/rate-limit-state`.
 - First successful API call, latest request timestamp/endpoint/status/request ID, and recent 4xx/5xx entries come from durable backend request activity rows.
 - Runtime tier, remaining requests, reset time, and backend (`memory` or `redis`) come from the active limiter implementation rather than inferred usage aggregates.
-- Troubleshooting link: `https://docs.arche.fi/troubleshooting/request-ids`
+- Troubleshooting link: `https://docs.arche.fi/troubleshooting/request-ids` (published in `arche-docs`).
+- Developers send `X-Request-ID`; the API echoes it and returns `trace_id` in the error envelope. Both are documented together on the troubleshooting page.
 - Billing/entitlements no longer silently fall back to synthetic success payloads.
 
 ## Core Route Map

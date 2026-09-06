@@ -7,7 +7,7 @@ Events are written asynchronously and do not block API responses.
 Tracked events:
 
 - `developer_signed_up`
-- `docs_quickstart_viewed`
+- `docs_quickstart_viewed` — recorded when a developer arrives from the docs quickstart (`?ref=quickstart`), not on portal page mount
 - `api_key_created`
 - `first_api_request`
 - `first_successful_api_call`
@@ -25,6 +25,15 @@ Canonical internal row shape (`developer_activation`):
 ## Activation definition
 
 A developer is activated when `first_successful_api_call` is recorded.
+
+## Docs attribution
+
+`docs_to_api_latency_ms` is only meaningful if `docs_quickstart_viewed` marks an
+actual docs view. The quickstart at `https://docs.arche.fi/quickstart` links into
+the portal with `?ref=quickstart`, and `components/portal/DocsReferralTracker.tsx`
+records the event once per session on arrival. Attribution happens portal-side
+because that is where the Clerk identity exists; docs and portal are separate
+origins and do not share a session cookie.
 
 ## Funnel metrics
 
