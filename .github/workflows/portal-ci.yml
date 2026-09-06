@@ -25,8 +25,14 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # next build prerenders pages that construct the Clerk provider, so the
+      # build needs syntactically valid keys even though no Clerk call is made.
+      # Without these the build has failed on main since April.
       - name: Build
         run: npm run build
+        env:
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZS5jb20k
+          CLERK_SECRET_KEY: sk_test_ci_placeholder
 
       - name: Portal smoke
         run: npm run smoke:portal
@@ -39,3 +45,9 @@ jobs:
 
       - name: Developer flow tests
         run: npm run test:dev-flow
+
+      - name: Integration contract validation
+        run: npm run test:integration-contracts
+
+      - name: Portal targeted tests
+        run: npm run test:portal-targeted
