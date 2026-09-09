@@ -1,6 +1,7 @@
 'use client'
 
 import { BillingActions } from '@/components/billing/BillingActions'
+import { PaddleCheckout } from '@/components/billing/PaddleCheckout'
 import { Text } from '@/components/catalyst/text'
 import { ApiErrorNotice } from '@/components/portal/ApiErrorNotice'
 import { PageShell } from '@/components/portal/PageShell'
@@ -16,6 +17,8 @@ export default function BillingPage() {
 
   return (
     <PageShell title="Billing" description="Paddle purchase state synchronized into Arche API canonical entitlement state.">
+        <PaddleCheckout />
+
       {loadingAccess ? <Text className="text-sm text-zinc-600">Loading billing and entitlement data…</Text> : null}
 
       {accessError ? (
