@@ -7,8 +7,8 @@ export default function ClerkProviderClient({ children }: { children: React.Reac
   const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
   const signInUrl = process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL || '/login'
   const signUpUrl = process.env.NEXT_PUBLIC_CLERK_SIGN_UP_URL || '/sign-up'
-  const signInFallbackRedirectUrl = process.env.NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL || '/'
-  const signUpFallbackRedirectUrl = process.env.NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL || '/'
+  const signInFallbackRedirectUrl = process.env.NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL || '/dashboard'
+  const signUpFallbackRedirectUrl = process.env.NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL || '/dashboard'
 
   if (authDisabled) {
     return <>{children}</>

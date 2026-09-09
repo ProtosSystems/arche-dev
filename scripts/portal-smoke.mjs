@@ -2,7 +2,7 @@ import fs from 'node:fs'
 
 const required = [
   'app/login/[[...rest]]/page.tsx',
-  'app/(portal)/page.tsx',
+  'app/(portal)/dashboard/page.tsx',
   'app/(portal)/onboarding/page.tsx',
   'app/(portal)/keys/page.tsx',
   'app/(portal)/usage/page.tsx',
@@ -82,7 +82,7 @@ if (onboarding.toLowerCase().includes('project context')) {
   process.exit(1)
 }
 
-const overview = fs.readFileSync('app/(portal)/page.tsx', 'utf8')
+const overview = fs.readFileSync('app/(portal)/dashboard/page.tsx', 'utf8')
 const firstRequestCard = fs.readFileSync('components/overview/ConnectionCard.tsx', 'utf8')
 const overviewSignals = ['Access status', 'API Keys', 'Usage']
 for (const marker of overviewSignals) {
@@ -148,7 +148,7 @@ if (!accountPage.includes('openUserProfile()')) {
 const forbiddenCopyMarkers = ['coming soon', 'mark onboarding complete']
 const coreFiles = [
   'app/(portal)/onboarding/page.tsx',
-  'app/(portal)/page.tsx',
+  'app/(portal)/dashboard/page.tsx',
   'components/portal/PortalShell.tsx',
   'components/overview/ConnectionCard.tsx',
 ]
@@ -183,7 +183,7 @@ for (const file of bffFiles) {
 
 const apiErrorNoticeFiles = [
   'app/(portal)/onboarding/page.tsx',
-  'app/(portal)/page.tsx',
+  'app/(portal)/dashboard/page.tsx',
   'app/(portal)/billing/page.tsx',
   'app/(portal)/usage/page.tsx',
   'app/(portal)/keys/page.tsx',
