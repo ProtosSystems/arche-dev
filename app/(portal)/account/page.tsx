@@ -17,6 +17,32 @@ function AccountRow({ label, value }: { label: string; value: string }) {
   )
 }
 
+/** An identifier row. Rendered monospaced and copyable, because these get pasted
+ *  into terminals and support tickets rather than read. */
+function AccountIdentifierRow({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false)
+
+  return (
+    <div className="flex flex-col gap-1 border-t border-zinc-200 py-3 first:border-t-0 first:pt-0 last:pb-0">
+      <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">{label}</dt>
+      <dd className="flex flex-wrap items-center gap-2">
+        <code className="font-mono text-sm text-zinc-900 dark:text-white">{value}</code>
+        <button
+          type="button"
+          className="rounded border border-zinc-200 px-2 py-0.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-950/2.5 dark:border-white/15 dark:text-[var(--protos-mist-300)] dark:hover:bg-white/5"
+          onClick={async () => {
+            await navigator.clipboard.writeText(value)
+            setCopied(true)
+            window.setTimeout(() => setCopied(false), 1200)
+          }}
+        >
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      </dd>
+    </div>
+  )
+}
+
 export default function AccountPage() {
   const authDisabled = process.env.NEXT_PUBLIC_AUTH_DISABLED_FOR_DEV === 'true'
   const { openUserProfile } = useClerk()
@@ -86,7 +112,10 @@ export default function AccountPage() {
           <dl>
             <AccountRow label="Email" value={email ?? 'Unavailable'} />
             <AccountRow label="Organization / account name" value={organizationName} />
-            {userId ? <AccountRow label="User ID" value={userId} /> : null}
+            {currentOrganization ? (
+              <AccountIdentifierRow label="Organization ID" value={currentOrganization.id} />
+            ) : null}
+            {userId ? <AccountIdentifierRow label="User ID" value={userId} /> : null}
             {subscriptionStatus ? <AccountRow label="Billing status" value={subscriptionStatus} /> : null}
           </dl>
         )}
