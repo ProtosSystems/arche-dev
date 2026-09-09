@@ -3,6 +3,26 @@
 import { initializePaddle, type Paddle } from '@paddle/paddle-js'
 import { useEffect, useState } from 'react'
 import { Text } from '@/components/catalyst/text'
+import { usePortal } from '@/components/portal/PortalProvider'
+
+/**
+ * Returns the publishable Paddle token for one portal environment.
+ *
+ * Sandbox and production are separate Paddle accounts holding separate
+ * transactions, so one token cannot serve both. Next.js only inlines
+ * `NEXT_PUBLIC_*` where it is referenced literally, so each name is spelled
+ * out rather than built from the environment string.
+ *
+ * The unsuffixed name stays supported so a deployment configured before the
+ * split keeps working.
+ */
+function clientTokenFor(environment: 'sandbox' | 'production'): string | undefined {
+  const fallback = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN
+  if (environment === 'production') {
+    return process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN_PRODUCTION || fallback
+  }
+  return process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN_SANDBOX || fallback
+}
 
 /**
  * Opens the Paddle checkout overlay for a transaction Paddle redirected here.
@@ -16,6 +36,7 @@ import { Text } from '@/components/catalyst/text'
  * unchanged for everyone else.
  */
 export function PaddleCheckout() {
+  const { selectedEnvironment } = usePortal()
   const [transactionId, setTransactionId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -29,18 +50,28 @@ export function PaddleCheckout() {
     }
     setTransactionId(ptxn)
 
-    const token = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN
+    const token = clientTokenFor(selectedEnvironment)
     if (!token) {
       // Fail loudly rather than showing a blank page: without a client-side
       // token the overlay cannot open, and the customer would otherwise be
       // left staring at a billing page with no explanation.
-      setError('Checkout is unavailable: the Paddle client token is not configured.')
+      setError(
+        `Checkout is unavailable: no Paddle client token is configured for the ${selectedEnvironment} environment.`
+      )
       return
     }
 
     // A live token pairs with the live environment and a test_ token with
-    // sandbox; mismatching them fails inside Paddle.js with no useful message.
+    // sandbox; mismatching them fails inside Paddle.js with no useful message,
+    // so check the pairing here where it can still be explained.
     const environment = token.startsWith('live_') ? 'production' : 'sandbox'
+    if (environment !== selectedEnvironment) {
+      setError(
+        `Checkout is unavailable: the configured Paddle token is for ${environment}, ` +
+          `but this organization is on ${selectedEnvironment}.`
+      )
+      return
+    }
 
     let cancelled = false
     void initializePaddle({ token, environment })
@@ -62,7 +93,7 @@ export function PaddleCheckout() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [selectedEnvironment])
 
   if (!transactionId) {
     return null
