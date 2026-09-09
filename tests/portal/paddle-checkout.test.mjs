@@ -19,6 +19,36 @@ test('token environment is derived rather than assumed', () => {
   assert.ok(component.includes("startsWith('live_')"), 'environment must follow the token prefix')
 })
 
+test('each portal environment gets its own Paddle token', () => {
+  // Sandbox and production are separate Paddle accounts holding separate
+  // transactions, so a single token cannot serve both.
+  assert.ok(
+    component.includes('NEXT_PUBLIC_PADDLE_CLIENT_TOKEN_SANDBOX'),
+    'must read a sandbox-specific client token'
+  )
+  assert.ok(
+    component.includes('NEXT_PUBLIC_PADDLE_CLIENT_TOKEN_PRODUCTION'),
+    'must read a production-specific client token'
+  )
+  assert.ok(
+    component.includes('selectedEnvironment'),
+    'must choose the token by the selected portal environment'
+  )
+  // Next.js only inlines NEXT_PUBLIC_* where it is referenced literally, so a
+  // name assembled at runtime would read as undefined in the browser.
+  assert.ok(
+    !/process\.env\[/.test(component),
+    'client token names must be literal so Next.js inlines them'
+  )
+})
+
+test('a token from the wrong Paddle account is refused with an explanation', () => {
+  assert.ok(
+    component.includes('environment !== selectedEnvironment'),
+    'must detect a token that does not match the selected environment'
+  )
+})
+
 test('a missing token fails visibly instead of silently', () => {
   assert.ok(
     component.includes('NEXT_PUBLIC_PADDLE_CLIENT_TOKEN'),
