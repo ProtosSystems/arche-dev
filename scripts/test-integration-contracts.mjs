@@ -27,7 +27,7 @@ const healthRoute = read('app/api/integration-health/route.ts')
 const rateLimitRoute = read('app/api/rate-limit-state/route.ts')
 const provider = read('components/portal/PortalProvider.tsx')
 const header = read('components/app/AppHeader.tsx')
-const overview = read('app/(portal)/page.tsx')
+const overview = read('app/(portal)/dashboard/page.tsx')
 const billingActions = read('components/billing/BillingActions.tsx')
 const healthPanel = read('components/overview/IntegrationHealthPanel.tsx')
 
@@ -143,6 +143,35 @@ for (const marker of ['Integration health', 'Copy request ID', 'Per-key last use
 for (const marker of ['first_successful_api_call_at', 'latest_request_endpoint', 'latest_request_status', 'latest_request_id']) {
   if (!healthPanel.includes(marker)) {
     failures.push(`Integration health panel missing backend field marker: ${marker}`)
+  }
+}
+
+// Paddle (and any crawler) must reach a real page at the site root without a
+// login wall; the signed-in Overview lives at /dashboard. Regressing either
+// half re-breaks Paddle domain verification.
+const landing = read('app/page.tsx')
+if (!middleware.includes("'/',")) {
+  failures.push('Middleware must keep the site root public for unauthenticated visitors.')
+}
+if (fs.existsSync('app/(portal)/page.tsx')) {
+  failures.push('Overview must live at app/(portal)/dashboard/page.tsx, not at the public root.')
+}
+if (!landing.includes("redirect('/dashboard')")) {
+  failures.push('Landing page must send signed-in users to /dashboard.')
+}
+for (const marker of ["href=\"/login\"", "href=\"/sign-up\""]) {
+  if (!landing.includes(marker)) {
+    failures.push(`Landing page missing entry point: ${marker}`)
+  }
+}
+for (const file of [
+  'components/portal/PortalShell.tsx',
+  'components/app/AppHeader.tsx',
+  'app/clerk-provider.tsx',
+]) {
+  const content = read(file)
+  if (/(href|Url|url)\s*[:=]\s*['"`]\/['"`]/.test(content)) {
+    failures.push(`Portal navigation must point at /dashboard, not the public root: ${file}`)
   }
 }
 

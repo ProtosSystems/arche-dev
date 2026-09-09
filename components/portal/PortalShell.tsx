@@ -33,7 +33,7 @@ function NavLinks() {
   const pathname = usePathname()
 
   const links: NavItem[] = [
-    { id: 'overview', label: 'Overview', href: '/', icon: HomeIcon },
+    { id: 'overview', label: 'Overview', href: '/dashboard', icon: HomeIcon },
     { id: 'onboarding', label: 'Onboarding', href: '/onboarding', icon: KeyIcon },
     { id: 'keys', label: 'API Keys', href: '/keys', icon: KeyIcon },
     { id: 'usage', label: 'Usage', href: '/usage', icon: ChartBarIcon },

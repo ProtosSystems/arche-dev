@@ -13,7 +13,7 @@ import { usePathname } from 'next/navigation'
 import { useState, useTransition } from 'react'
 
 function getPageTitle(pathname: string): string {
-  if (pathname === '/') return 'Overview'
+  if (pathname === '/dashboard') return 'Overview'
   if (pathname === '/account') return 'Account'
   if (pathname === '/billing') return 'Billing'
   if (pathname === '/onboarding') return 'Onboarding'
@@ -84,7 +84,7 @@ export function AppHeader() {
     <header className="space-y-4 rounded-xl bg-white py-3">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
-          <Link href="/" className="text-sm font-semibold text-zinc-900">
+          <Link href="/dashboard" className="text-sm font-semibold text-zinc-900">
             Arche Developer Portal
           </Link>
           <Text className="truncate text-sm text-zinc-500">/ {pageTitle}</Text>
