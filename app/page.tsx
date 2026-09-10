@@ -11,6 +11,21 @@ export const metadata: Metadata = {
   alternates: { canonical: '/' },
 }
 
+// Paddle's domain review looks for more than a reachable page: what is sold
+// and at what price, the terms governing it, how data is handled, how refunds
+// work, and who the seller legally is. These live on the marketing site, so the
+// portal links out rather than duplicating them.
+const SITE_LINKS = [
+  { label: 'Pricing', href: 'https://arche.fi/pricing' },
+  { label: 'Documentation', href: 'https://docs.arche.fi' },
+  { label: 'Terms of Service', href: 'https://arche.fi/legal/terms' },
+  { label: 'Privacy Policy', href: 'https://arche.fi/legal/privacy' },
+  { label: 'Refund Policy', href: 'https://arche.fi/legal/refund-policy' },
+  { label: 'Security', href: 'https://arche.fi/legal/security' },
+]
+
+const SUPPORT_EMAIL = 'hello@protos.fi'
+
 const COVERAGE = [
   { value: '15,500', label: 'companies' },
   { value: '92.7%', label: 'gap-free across each filer’s reporting life' },
@@ -73,6 +88,12 @@ export default async function LandingPage() {
           Create an account
         </Link>
         <a
+          href="https://arche.fi/pricing"
+          className="text-sm font-medium text-zinc-700 underline dark:text-zinc-300"
+        >
+          Pricing
+        </a>
+        <a
           href="https://docs.arche.fi"
           className="text-sm font-medium text-zinc-700 underline dark:text-zinc-300"
         >
@@ -80,9 +101,35 @@ export default async function LandingPage() {
         </a>
       </div>
 
-      <p className="mt-12 text-xs text-zinc-500 dark:text-zinc-500">
-        {new URL('/', siteUrl).host} · Operated by Protos Systems
-      </p>
+      <footer className="mt-16 border-t border-zinc-200 pt-6 dark:border-white/10">
+        <nav aria-label="Site and legal" className="flex flex-wrap gap-x-5 gap-y-2">
+          {SITE_LINKS.map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              className="text-xs text-zinc-600 underline hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
+            >
+              {link.label}
+            </a>
+          ))}
+          <a
+            href={`mailto:${SUPPORT_EMAIL}`}
+            className="text-xs text-zinc-600 underline hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
+          >
+            Contact
+          </a>
+        </nav>
+
+        <address className="mt-5 text-xs not-italic leading-relaxed text-zinc-500 dark:text-zinc-500">
+          {new URL('/', siteUrl).host} · Operated by Protos Systems LLC
+          <br />
+          3419 Virginia Beach Blvd #547, Virginia Beach, VA 23452, United States
+          <br />
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="underline">
+            {SUPPORT_EMAIL}
+          </a>
+        </address>
+      </footer>
     </main>
   )
 }
