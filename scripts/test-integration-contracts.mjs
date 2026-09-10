@@ -175,6 +175,26 @@ for (const file of [
   }
 }
 
+// Paddle's domain review rejects a site that does not show what is sold, the
+// terms governing it, how refunds work, and who the seller is. A reachable page
+// alone is not enough -- that was the first rejection.
+for (const required of [
+  'https://arche.fi/pricing',
+  'https://arche.fi/legal/terms',
+  'https://arche.fi/legal/privacy',
+  'https://arche.fi/legal/refund-policy',
+]) {
+  if (!landing.includes(required)) {
+    failures.push(`Landing page must link the payment-provider-required page: ${required}`)
+  }
+}
+if (!landing.includes('Protos Systems LLC')) {
+  failures.push('Landing page must name the legal selling entity.')
+}
+if (!/mailto:/.test(landing)) {
+  failures.push('Landing page must publish a contact address.')
+}
+
 if (failures.length > 0) {
   console.error('Integration contract validation failed:')
   for (const failure of failures) {
