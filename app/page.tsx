@@ -15,9 +15,12 @@ export const metadata: Metadata = {
 // and at what price, the terms governing it, how data is handled, how refunds
 // work, and who the seller legally is. These live on the marketing site, so the
 // portal links out rather than duplicating them.
+//
+// docs.arche.fi is deliberately absent. It answers 307 to /access, so linking it
+// leads a reviewer from the page being reviewed straight into the login wall
+// that failed the first review. Restore it once the docs are public.
 const SITE_LINKS = [
   { label: 'Pricing', href: 'https://arche.fi/pricing' },
-  { label: 'Documentation', href: 'https://docs.arche.fi' },
   { label: 'Terms of Service', href: 'https://arche.fi/legal/terms' },
   { label: 'Privacy Policy', href: 'https://arche.fi/legal/privacy' },
   { label: 'Refund Policy', href: 'https://arche.fi/legal/refund-policy' },
@@ -92,12 +95,6 @@ export default async function LandingPage() {
           className="text-sm font-medium text-zinc-700 underline dark:text-zinc-300"
         >
           Pricing
-        </a>
-        <a
-          href="https://docs.arche.fi"
-          className="text-sm font-medium text-zinc-700 underline dark:text-zinc-300"
-        >
-          Documentation
         </a>
       </div>
 
