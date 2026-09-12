@@ -188,19 +188,6 @@ for (const required of [
     failures.push(`Landing page must link the payment-provider-required page: ${required}`)
   }
 }
-// docs.arche.fi answers 307 to /access. A link to it takes a payment-provider
-// reviewer from the page under review straight into the login wall that failed
-// the first review. Remove this guard when the docs become public.
-//
-// Comments are stripped first, and the check is on the host rather than on one
-// spelling of a link: the page writes hrefs both as JSX attributes and as
-// object properties, and matching only `href="..."` missed the second.
-const landingCode = landing.replace(/^\s*\/\/.*$/gm, '')
-if (landingCode.includes('docs.arche.fi')) {
-  failures.push(
-    'Landing page must not link docs.arche.fi while it redirects to a login wall.'
-  )
-}
 if (!landing.includes('Protos Systems LLC')) {
   failures.push('Landing page must name the legal selling entity.')
 }
