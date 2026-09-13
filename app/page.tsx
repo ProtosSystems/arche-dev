@@ -14,13 +14,13 @@ export const metadata: Metadata = {
  * This briefly held a landing page, and then pricing, policies, and a contact
  * page grew beside it -- all of which already existed on arche.fi, so two live
  * sites answered the same questions and the pricing pair answered them
- * differently. The public site is the single home for that content now.
+ * differently. The public site is the single home for that content now, and
+ * the sign-in page carries the links to it.
  *
- * What is left is the convention every comparable product follows: signed out
- * goes to the sign-in form, signed in goes to the dashboard. The sign-in page
- * carries the links to arche.fi, so a visitor who arrives here anonymously --
- * including a payment provider verifying the domain -- lands somewhere that
- * names the seller and links what it sells, rather than on a bare auth widget.
+ * `middleware.ts` normally forwards this route before it renders, because a
+ * redirect from here arrives after Clerk's provider has flushed a loading
+ * shell and degrades to a client-side one. This is the fallback for the case
+ * where middleware did not run, and it makes the same decision.
  */
 export default async function RootPage() {
   const { userId } = await auth()

@@ -202,9 +202,19 @@ for (const route of forwarded) {
   }
 }
 
-// The root decides where to send a visitor rather than rendering anything.
+// The root decides where to send a visitor rather than rendering anything, and
+// it decides in middleware. Redirecting from the page instead returns 200 with
+// Clerk's flushed "Loading..." shell and the redirect buried in the HTML, which
+// only a browser running scripts will follow.
 if (!rootPage.includes("redirect(userId ? '/dashboard' : '/login')")) {
   failures.push('The application root must forward signed-out visitors to /login and signed-in visitors to /dashboard.')
+}
+const routesRootInMiddleware =
+  /pathname === '\/'/.test(middleware) &&
+  /NextResponse\.redirect/.test(middleware) &&
+  /userId \? '\/dashboard' : '\/login'/.test(middleware)
+if (!routesRootInMiddleware) {
+  failures.push('The root must be redirected from middleware, so an anonymous visitor gets a 307 rather than a flushed loading shell.')
 }
 if (fs.existsSync('app/(portal)/page.tsx')) {
   failures.push('Overview must live at app/(portal)/dashboard/page.tsx, not at the application root.')
