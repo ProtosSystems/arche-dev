@@ -1,5 +1,6 @@
 'use client'
 
+import { AuthFooter } from '@/components/public/AuthFooter'
 import { SignUp } from '@clerk/nextjs'
 
 export default function SignUpPage() {
@@ -19,10 +20,14 @@ export default function SignUpPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(180deg,#eef2f7_0%,#e3e9f2_100%)] px-6">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-[linear-gradient(180deg,#eef2f7_0%,#e3e9f2_100%)] px-6 py-12">
       <div className="login-shell w-full max-w-md">
         <div className="mb-5 text-center">
           <div className="font-sans text-[1.65rem] font-normal tracking-[-0.02em] text-[#0F172A]">⍺rche developer portal</div>
+          <p className="mt-2 text-sm leading-relaxed text-zinc-600">
+            Point-in-time financial fundamentals from SEC filings, with statement versions, restatement
+            lineage, and a reproducible fingerprint for every result.
+          </p>
         </div>
         <SignUp
           path="/sign-up"
@@ -52,6 +57,7 @@ export default function SignUpPage() {
             },
           }}
         />
+        <AuthFooter />
       </div>
       <style jsx global>{`
         .login-shell .cl-formButtonPrimary,

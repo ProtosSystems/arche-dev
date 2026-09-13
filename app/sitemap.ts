@@ -2,23 +2,19 @@ import type { MetadataRoute } from 'next'
 import { getSiteUrl } from '@/lib/site'
 
 /**
- * Only pages that resolve without a session belong here. A sitemap entry that
- * redirects an anonymous crawler to a sign-in form is worse than no entry.
+ * This host is the application. Its only indexable pages are the two auth
+ * forms; the root forwards to one of them, and `/pricing`, `/contact`, and
+ * `/legal/*` are permanent redirects to arche.fi, which lists them in its own
+ * sitemap. Listing a redirect here would ask a crawler to index a URL that
+ * resolves somewhere else.
  */
 const pages: Array<{
   path: string
   changeFrequency: MetadataRoute.Sitemap[number]['changeFrequency']
   priority: number
 }> = [
-  { path: '/', changeFrequency: 'weekly', priority: 1 },
-  { path: '/pricing', changeFrequency: 'weekly', priority: 0.95 },
-  { path: '/login', changeFrequency: 'weekly', priority: 0.9 },
-  { path: '/sign-up', changeFrequency: 'weekly', priority: 0.8 },
-  { path: '/contact', changeFrequency: 'monthly', priority: 0.7 },
-  { path: '/legal/terms', changeFrequency: 'monthly', priority: 0.6 },
-  { path: '/legal/privacy', changeFrequency: 'monthly', priority: 0.6 },
-  { path: '/legal/refund-policy', changeFrequency: 'monthly', priority: 0.6 },
-  { path: '/legal/security', changeFrequency: 'monthly', priority: 0.6 },
+  { path: '/login', changeFrequency: 'monthly', priority: 0.6 },
+  { path: '/sign-up', changeFrequency: 'monthly', priority: 0.6 },
 ]
 
 export default function sitemap(): MetadataRoute.Sitemap {

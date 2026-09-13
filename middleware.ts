@@ -1,11 +1,14 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 
-// Everything a visitor needs before buying -- what is sold and at what price,
-// the policies governing it, and how to reach the seller -- has to answer
-// without a session. A payment provider verifying this domain crawls it rather
-// than loading one URL, and a host where every path but the root redirects to
-// a sign-in form is indistinguishable from a login wall. These must stay in
-// step with the pages under `app/(public)`.
+// The root is public because it decides where to send you: signed out to the
+// sign-in form, signed in to the dashboard. It must not require a session to
+// make that decision, or an anonymous visitor gets a redirect loop.
+//
+// The pages a buyer needs before paying live on arche.fi, and `next.config.mjs`
+// forwards `/pricing`, `/contact`, and `/legal/*` there permanently. Those
+// redirects run ahead of middleware, so they never reach this matcher -- they
+// are listed anyway, so that removing one from next.config degrades to a public
+// 404 rather than silently becoming a sign-in redirect again.
 const isPublicRoute = createRouteMatcher([
   '/',
   '/login(.*)',
@@ -13,10 +16,7 @@ const isPublicRoute = createRouteMatcher([
   '/sso-callback(.*)',
   '/pricing',
   '/contact',
-  '/legal/terms',
-  '/legal/privacy',
-  '/legal/refund-policy',
-  '/legal/security',
+  '/legal/(.*)',
   '/internal/webhooks/paddle',
   '/internal/webhooks/paddle/sandbox',
   '/internal/webhooks/paddle/production',

@@ -31,16 +31,19 @@ API_BASE_URL=http://localhost:8000
 
 ## Routes
 
-Public, and required to stay public -- a payment provider verifies this domain
-by crawling it, and a host where every path redirects to a sign-in form is
-rejected as a login wall. `scripts/test-integration-contracts.mjs` fails if a
-page under `app/(public)` is missing from the matcher in `middleware.ts`:
+This host is the application. The public site is `arche.fi`, and it is the only
+home for pricing, the four policies and contact -- they were duplicated here for
+a day, and the two pricing pages disagreed. `next.config.mjs` forwards those
+paths permanently, so a guessed or bookmarked URL reaches the real page instead
+of the Clerk redirect it used to get. `scripts/test-integration-contracts.mjs`
+fails if a page file here shadows one of them.
 
-- `/` (landing)
-- `/pricing`
-- `/contact`
-- `/legal/terms`, `/legal/privacy`, `/legal/refund-policy`, `/legal/security`
-- `/login`, `/sign-up`
+Anonymous:
+
+- `/` -- forwards to `/login` signed out, `/dashboard` signed in
+- `/login`, `/sign-up` -- the only indexable pages; both carry the footer that
+  names the seller and links `arche.fi`
+- `/pricing`, `/contact`, `/legal/*` -- 308 to `arche.fi`
 
 Behind Clerk:
 
