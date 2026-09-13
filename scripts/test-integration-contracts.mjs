@@ -146,12 +146,15 @@ for (const marker of ['first_successful_api_call_at', 'latest_request_endpoint',
   }
 }
 
-// Paddle (and any crawler) must reach a real page at the site root without a
-// login wall; the signed-in Overview lives at /dashboard. Regressing either
-// half re-breaks Paddle domain verification.
-const landing = read('app/page.tsx')
-if (!middleware.includes("'/',")) {
-  failures.push('Middleware must keep the site root public for unauthenticated visitors.')
+// Paddle rejected this domain twice. The second rejection arrived with a live
+// root page and a valid certificate, because a domain review crawls the host
+// rather than loading one URL: every path other than `/`, `/login`, and
+// `/sign-up` still answered an anonymous visitor with a sign-in redirect, and a
+// host whose only public surface is a hero and two auth buttons reads as a
+// login wall. These guards keep the public commerce surface public.
+const landing = read('app/(public)/page.tsx')
+if (fs.existsSync('app/page.tsx')) {
+  failures.push('The landing page must live in the (public) route group so it shares the public chrome.')
 }
 if (fs.existsSync('app/(portal)/page.tsx')) {
   failures.push('Overview must live at app/(portal)/dashboard/page.tsx, not at the public root.')
@@ -159,40 +162,85 @@ if (fs.existsSync('app/(portal)/page.tsx')) {
 if (!landing.includes("redirect('/dashboard')")) {
   failures.push('Landing page must send signed-in users to /dashboard.')
 }
-for (const marker of ["href=\"/login\"", "href=\"/sign-up\""]) {
+for (const marker of ['href="/login"', 'href="/sign-up"']) {
   if (!landing.includes(marker)) {
     failures.push(`Landing page missing entry point: ${marker}`)
   }
 }
-for (const file of [
-  'components/portal/PortalShell.tsx',
-  'components/app/AppHeader.tsx',
-  'app/clerk-provider.tsx',
-]) {
-  const content = read(file)
-  if (/(href|Url|url)\s*[:=]\s*['"`]\/['"`]/.test(content)) {
-    failures.push(`Portal navigation must point at /dashboard, not the public root: ${file}`)
+
+// Derive the routes from the files rather than restating them, so adding a page
+// under (public) without opening it in middleware fails here instead of
+// silently serving a sign-in redirect to the next reviewer.
+function publicRoutes(dir = 'app/(public)', prefix = '') {
+  const routes = []
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      routes.push(...publicRoutes(`${dir}/${entry.name}`, `${prefix}/${entry.name}`))
+    } else if (entry.name === 'page.tsx') {
+      routes.push(prefix === '' ? '/' : prefix)
+    }
+  }
+  return routes
+}
+const discovered = fs.existsSync('app/(public)') ? publicRoutes() : []
+for (const route of discovered) {
+  if (!middleware.includes(`'${route}'`)) {
+    failures.push(`Route in app/(public) is not public in middleware.ts: ${route}`)
   }
 }
 
-// Paddle's domain review rejects a site that does not show what is sold, the
-// terms governing it, how refunds work, and who the seller is. A reachable page
-// alone is not enough -- that was the first rejection.
-for (const required of [
-  'https://arche.fi/pricing',
-  'https://arche.fi/legal/terms',
-  'https://arche.fi/legal/privacy',
-  'https://arche.fi/legal/refund-policy',
-]) {
-  if (!landing.includes(required)) {
-    failures.push(`Landing page must link the payment-provider-required page: ${required}`)
+// A payment provider's review looks for what is sold and at what price, the
+// terms governing it, how data is handled, how refunds work, and who the seller
+// legally is. A reachable page alone is not enough -- that was the first
+// rejection -- and linking them off-domain leaves the host being verified with
+// nothing on it, which was the second.
+const REQUIRED_PUBLIC_PAGES = ['/', '/pricing', '/contact', '/legal/terms', '/legal/privacy', '/legal/refund-policy', '/legal/security']
+for (const route of REQUIRED_PUBLIC_PAGES) {
+  if (!discovered.includes(route)) {
+    failures.push(`Payment-provider-required page is missing from app/(public): ${route}`)
   }
 }
-if (!landing.includes('Protos Systems LLC')) {
-  failures.push('Landing page must name the legal selling entity.')
+
+const publicChrome = read('components/public/PublicChrome.tsx')
+if (!publicChrome.includes('LEGAL_ENTITY') || !publicChrome.includes('mailto:')) {
+  failures.push('Public footer must name the legal selling entity and publish a contact address.')
 }
-if (!/mailto:/.test(landing)) {
-  failures.push('Landing page must publish a contact address.')
+const publicSite = read('lib/public-site.ts')
+if (!publicSite.includes('Protos Systems LLC')) {
+  failures.push('Public site constants must name the legal selling entity.')
+}
+for (const route of REQUIRED_PUBLIC_PAGES) {
+  if (route !== '/' && !publicSite.includes(`'${route}'`)) {
+    failures.push(`Public footer must link the required page on this domain: ${route}`)
+  }
+}
+if (/https:\/\/arche\.fi\/(pricing|legal)/.test(publicSite) && !publicSite.includes('MARKETING_ORIGIN')) {
+  failures.push('Required pages must be served on this domain, not linked to the marketing site.')
+}
+
+// A published price that no longer matches Paddle charges a customer an amount
+// the page did not quote, so the page carries the price ids it was read from.
+const pricingData = read('lib/pricing.ts')
+for (const priceId of ['pri_01m22we15513n2bsd3x18ygkdk', 'pri_01m22whkm3nqk3etqvhr6ptw0h', 'pri_01m22wm8tf92ktqacs7vz67gsr']) {
+  if (!pricingData.includes(priceId)) {
+    failures.push(`Published plan is missing the live Paddle price id it was read from: ${priceId}`)
+  }
+}
+if (!/monthlyUsd: 99\b/.test(pricingData) || !/monthlyUsd: 600\b/.test(pricingData) || !/monthlyUsd: 2500\b/.test(pricingData)) {
+  failures.push('Published monthly prices must match the live Paddle prices (99 / 600 / 2500 USD).')
+}
+
+// The previous refund policy described a 7-day trial converting to an annual
+// license, which is not what checkout charges. Terms that disagree with the
+// transaction are the single page a payment review reads most closely.
+const refundPolicy = read('app/(public)/legal/refund-policy/page.tsx')
+if (/free trial/i.test(refundPolicy) && !/shown at checkout/i.test(refundPolicy)) {
+  failures.push('Refund policy must not assert a trial the checkout does not configure.')
+}
+for (const marker of ['Cancellation', 'Refunds', 'Duplicate payments']) {
+  if (!refundPolicy.includes(marker)) {
+    failures.push(`Refund policy missing required section: ${marker}`)
+  }
 }
 
 if (failures.length > 0) {

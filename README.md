@@ -29,9 +29,22 @@ CLERK_SECRET_KEY=
 API_BASE_URL=http://localhost:8000
 ```
 
-## Core Portal Routes
+## Routes
 
-- `/`
+Public, and required to stay public -- a payment provider verifies this domain
+by crawling it, and a host where every path redirects to a sign-in form is
+rejected as a login wall. `scripts/test-integration-contracts.mjs` fails if a
+page under `app/(public)` is missing from the matcher in `middleware.ts`:
+
+- `/` (landing)
+- `/pricing`
+- `/contact`
+- `/legal/terms`, `/legal/privacy`, `/legal/refund-policy`, `/legal/security`
+- `/login`, `/sign-up`
+
+Behind Clerk:
+
+- `/dashboard`
 - `/onboarding`
 - `/keys`
 - `/usage`
