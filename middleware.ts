@@ -30,18 +30,24 @@ export default clerkMiddleware(
       return
     }
 
-    // The root is routed here rather than from `app/page.tsx`, because a
-    // `redirect()` in the page is too late. Clerk's provider streams a
-    // "Loading..." shell from the layout before the page's `auth()` resolves,
-    // and once that shell has flushed Next cannot answer with a 307 -- it
-    // embeds the redirect in the HTML for the browser to follow instead. A
-    // person is forwarded either way, but anything that does not run scripts
-    // sees a 200 page whose entire content is the word "Loading", which is
-    // what a payment provider's domain check reports as a site under
-    // construction. Middleware answers before any HTML exists.
+    // Signed-in visitors are sent to the dashboard from here rather than from
+    // `app/page.tsx`, because a `redirect()` in the page is too late: Clerk's
+    // provider streams a loading shell from the layout before the page's
+    // `auth()` resolves, and once that shell has flushed Next cannot answer
+    // with a 307 -- it embeds the redirect in the HTML instead.
+    //
+    // Signed-out visitors fall through to the page, which answers 200 with the
+    // product, the entry points, and links to arche.fi. Forwarding them to
+    // /login instead is the convention for an application domain, and it is
+    // also what a payment provider's automated domain check reads, correctly,
+    // as a login wall: the root redirects to a form. This domain has to pass
+    // that check, so it presents as a site.
     if (req.nextUrl.pathname === '/') {
       const { userId } = await auth()
-      return NextResponse.redirect(new URL(userId ? '/dashboard' : '/login', req.url))
+      if (userId) {
+        return NextResponse.redirect(new URL('/dashboard', req.url))
+      }
+      return
     }
 
     if (!isPublicRoute(req)) {

@@ -202,19 +202,33 @@ for (const route of forwarded) {
   }
 }
 
-// The root decides where to send a visitor rather than rendering anything, and
-// it decides in middleware. Redirecting from the page instead returns 200 with
-// Clerk's flushed "Loading..." shell and the redirect buried in the HTML, which
-// only a browser running scripts will follow.
-if (!rootPage.includes("redirect(userId ? '/dashboard' : '/login')")) {
-  failures.push('The application root must forward signed-out visitors to /login and signed-in visitors to /dashboard.')
+// Paddle approves each domain that opens a checkout, and its automated check
+// reads a root that redirects to a sign-in form as a login wall -- correctly,
+// because that is what it is. This domain has to pass that check, so the root
+// answers an anonymous visitor with content rather than forwarding them.
+if (/redirect\(.*'\/login'/.test(rootPage)) {
+  failures.push('The root must not forward anonymous visitors to a sign-in form; the domain review reads that as a login wall.')
 }
-const routesRootInMiddleware =
+for (const marker of ['href="/login"', 'href="/sign-up"', '<AuthFooter />']) {
+  if (!rootPage.includes(marker)) {
+    failures.push(`Root page is missing a required element: ${marker}`)
+  }
+}
+if (!rootPage.includes("marketingUrl('/pricing')")) {
+  failures.push('Root page must link the pricing page on arche.fi, so what is sold and at what price is one click away.')
+}
+
+// Signed-in visitors are forwarded from middleware. Doing it from the page
+// returns 200 with Clerk's flushed loading shell and the redirect buried in
+// the HTML, which only a browser running scripts will follow.
+const forwardsSignedInFromMiddleware =
   /pathname === '\/'/.test(middleware) &&
-  /NextResponse\.redirect/.test(middleware) &&
-  /userId \? '\/dashboard' : '\/login'/.test(middleware)
-if (!routesRootInMiddleware) {
-  failures.push('The root must be redirected from middleware, so an anonymous visitor gets a 307 rather than a flushed loading shell.')
+  /NextResponse\.redirect\(new URL\('\/dashboard'/.test(middleware)
+if (!forwardsSignedInFromMiddleware) {
+  failures.push('Signed-in visitors must be forwarded to /dashboard from middleware, before any HTML is flushed.')
+}
+if (/userId \? '\/dashboard' : '\/login'/.test(middleware)) {
+  failures.push('Middleware must let anonymous visitors reach the root page rather than forwarding them to /login.')
 }
 if (fs.existsSync('app/(portal)/page.tsx')) {
   failures.push('Overview must live at app/(portal)/dashboard/page.tsx, not at the application root.')
